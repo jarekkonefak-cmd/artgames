@@ -3,35 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nasze Kotkowe ArtWorkout 🐱</title>
+    <title>ArtWorkout Online</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-family: sans-serif; 
             text-align: center; 
-            background: #fff0f5; 
+            background: #f0f2f5; 
             margin: 0; 
             padding: 20px; 
             display: flex;
             flex-direction: column;
             align-items: center;
-            color: #4a4a4a;
         }
         .controls { 
             margin-bottom: 20px; 
-            padding: 20px; 
+            padding: 15px; 
             background: white; 
-            border-radius: 20px; 
-            box-shadow: 0 8px 24px rgba(255, 182, 193, 0.4); 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
             max-width: 400px;
             width: 100%;
         }
         .canvas-container {
-            position: relative;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            border-radius: 20px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            border-radius: 16px;
             overflow: hidden;
-            border: 6px solid #ffb6c1;
+            border: 4px solid #333;
         }
         canvas { 
             background: #ffffff; 
@@ -40,56 +38,48 @@
             display: block;
         }
         button { 
-            background: #ff6b8b; 
+            background: #007bff; 
             color: white; 
             border: none; 
-            padding: 12px 24px; 
-            border-radius: 12px; 
+            padding: 10px 20px; 
+            border-radius: 8px; 
             cursor: pointer; 
             font-weight: bold; 
             font-size: 16px;
             margin-top: 10px;
-            transition: 0.2s;
         }
-        button:hover { background: #ff4773; transform: scale(1.03); }
+        button:hover { background: #0056b3; }
         input { 
-            padding: 12px; 
-            border: 2px solid #ffd1dc; 
-            border-radius: 12px; 
-            font-size: 18px;
-            width: 70%;
+            padding: 10px; 
+            border: 2px solid #ccc; 
+            border-radius: 8px; 
+            font-size: 16px;
+            width: 60%;
             margin-top: 10px;
             text-align: center;
-            letter-spacing: 2px;
         }
         #myId { 
             font-weight: bold; 
-            color: #ff4773; 
-            font-size: 2em; 
-            letter-spacing: 3px;
-            background: #ffe5ec;
-            padding: 5px 15px;
-            border-radius: 10px;
+            color: #007bff; 
+            font-size: 1.8em; 
+            background: #e7f1ff;
+            padding: 3px 12px;
+            border-radius: 6px;
             display: inline-block;
             margin: 5px 0;
         }
-        #status { margin-top: 15px; font-weight: bold; font-size: 1.1em; color: #ff6b8b; }
+        #status { margin-top: 10px; font-weight: bold; color: #555; }
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <h2 style="margin: 0 0 10px 0; color: #ff4773;">🐱 Kotkowe Malowanie 🐱</h2>
-        <p style="margin: 5px 0;">Twój 5-cyfrowy kod:</p>
-        <span id="myId">...</span>
-        
+        <p style="margin: 5px 0;">Twój kod: <span id="myId">...</span></p>
+        <input type="number" id="friendId" placeholder="Wpisz kod drugiego gracza">
         <br>
-        <input type="number" id="friendId" placeholder="Kod dziewczyny" oninput="if(this.value.length > 5) this.value = this.value.slice(0,5);">
-        <br>
-        <button onclick="connectToFriend()">Połącz z ukochaną</button>
-        
-        <div id="status">Generowanie Twojego kodu...</div>
-        <button onclick="clearCanvas()" style="background: #a8a8a8; font-size: 12px; padding: 6px 12px;">Wyczyść linie</button>
+        <button onclick="connectToFriend()">Połącz</button>
+        <div id="status">Inicjalizacja sieci...</div>
+        <button onclick="clearCanvas()" style="background: #6c757d; font-size: 12px; padding: 5px 10px; margin-top: 15px;">Wyczyść planszę</button>
     </div>
 
     <div class="canvas-container">
@@ -101,101 +91,107 @@
         const ctx = canvas.getContext('2d');
         let isDrawing = false;
         let conn = null;
+        let peer = null;
 
-        // --- RYSOWANIE TŁA (DWA PRZYTULAJĄCE SIĘ KOTKI) ---
+        // --- DOPRACOWANY OBRAZEK KOTKÓW W TLE ---
         function drawBackground() {
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Kotek 1 (Lewy - np. dla Ciebie) - Różowy kontur
-            ctx.strokeStyle = "rgba(255, 182, 193, 0.4)"; 
-            ctx.lineWidth = 15;
+            ctx.lineWidth = 12;
             ctx.lineCap = "round";
             ctx.lineJoin = "round";
+
+            // LEWY KOTEK (Różowy kontur)
+            ctx.strokeStyle = "rgba(255, 182, 193, 0.5)";
             
-            // Ciało lewego kotka
+            // Głowa lewa
             ctx.beginPath();
-            ctx.arc(220, 320, 70, 0, Math.PI * 2); 
-            // Głowa lewego kotka
-            ctx.arc(230, 210, 45, 0, Math.PI * 2);
+            ctx.arc(230, 200, 45, 0, Math.PI * 2);
             ctx.stroke();
-            
-            // Uszy lewego kotka
+            // Uszy lewe
             ctx.beginPath();
-            ctx.moveTo(195, 180); ctx.lineTo(190, 145); ctx.lineTo(215, 170);
-            ctx.moveTo(245, 170); ctx.lineTo(265, 145); ctx.lineTo(260, 180);
+            ctx.moveTo(195, 175); ctx.lineTo(190, 140); ctx.lineTo(215, 160);
+            ctx.moveTo(245, 160); ctx.lineTo(270, 140); ctx.lineTo(265, 175);
+            ctx.stroke();
+            // Ciało lewe
+            ctx.beginPath();
+            ctx.moveTo(200, 240);
+            ctx.bezierCurveTo(160, 270, 160, 380, 230, 390);
+            ctx.lineTo(270, 390);
+            ctx.bezierCurveTo(290, 360, 270, 260, 255, 240);
             ctx.stroke();
 
-            // Kotek 2 (Prawy - np. dla Dziewczyny) - Niebieski kontur
-            ctx.strokeStyle = "rgba(173, 216, 230, 0.5)";
+            // PRAWY KOTEK (Niebieski kontur - przytulony)
+            ctx.strokeStyle = "rgba(173, 216, 230, 0.6)";
             
-            // Ciało prawego kotka (styka się z lewym!)
+            // Głowa prawa
             ctx.beginPath();
-            ctx.arc(360, 320, 70, 0, Math.PI * 2);
-            // Głowa prawego kotka (wtulona w lewego)
-            ctx.arc(350, 220, 45, 0, Math.PI * 2);
+            ctx.arc(315, 215, 45, 0, Math.PI * 2);
             ctx.stroke();
-            
-            // Uszy prawego kotka
+            // Uszy prawe
             ctx.beginPath();
-            ctx.moveTo(320, 190); ctx.lineTo(315, 155); ctx.lineTo(335, 180);
-            ctx.moveTo(365, 185); ctx.lineTo(390, 155); ctx.lineTo(385, 190);
+            ctx.moveTo(280, 190); ctx.lineTo(275, 155); ctx.lineTo(300, 175);
+            ctx.moveTo(330, 175); ctx.lineTo(355, 155); ctx.lineTo(350, 190);
+            ctx.stroke();
+            // Ciało prawe
+            ctx.beginPath();
+            ctx.moveTo(290, 253);
+            ctx.bezierCurveTo(280, 280, 300, 360, 320, 390);
+            ctx.lineTo(360, 390);
+            ctx.bezierCurveTo(430, 380, 430, 270, 350, 250);
             ctx.stroke();
 
-            // Wspólny ogon w kształcie serca!
-            ctx.strokeStyle = "rgba(255, 107, 139, 0.3)";
+            // WSPÓLNY OGON W KSZTAŁT SERCA
+            ctx.strokeStyle = "rgba(255, 140, 140, 0.4)";
             ctx.beginPath();
-            ctx.moveTo(220, 390);
-            ctx.bezierCurveTo(150, 450, 430, 450, 360, 390);
+            ctx.moveTo(250, 390); // środek między kotkami
+            ctx.bezierCurveTo(250, 460, 120, 470, 120, 360);
+            ctx.bezierCurveTo(120, 280, 250, 240, 285, 300); // lewa połówka serca
+            ctx.bezierCurveTo(320, 240, 450, 280, 450, 360);
+            ctx.bezierCurveTo(450, 470, 320, 460, 320, 390); // prawa połówka serca
             ctx.stroke();
-            
-            // Napis informacyjny na dole screena
-            ctx.fillStyle = "#bbb";
-            ctx.font = "16px sans-serif";
-            ctx.fillText("Umalujcie kotki, aby się przytuliły!", 180, 480);
         }
         
         drawBackground();
 
-        // Ustawienia pędzla gracza (Ciemnoróżowy/Malinowy)
-        ctx.strokeStyle = "#ff4773";
-        ctx.lineWidth = 6;
+        // Ustawienia rysowania gracza
+        ctx.strokeStyle = "#007bff"; // Kolor domyślny linii rysowania
+        ctx.lineWidth = 5;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
-        // --- SYSTEM MULTIPLAYER Z 5-CYFROWYM KODEM ---
-        
-        // Funkcja generująca losowe 5 cyfr (od 10000 do 99999)
-        const random5DigitCode = Math.floor(10000 + Math.random() * 90000).toString();
-        
-        // Rejestracja w PeerJS z naszym własnym, krótkim ID
-        const peer = new Peer(random5DigitCode);
+        // --- POPRAWIONE I STABILNE POŁĄCZENIE 5-CYFROWE ---
+        function initPeer() {
+            const randomCode = Math.floor(10000 + Math.random() * 90000).toString();
+            peer = new Peer(randomCode);
 
-        peer.on('open', (id) => {
-            document.getElementById('myId').innerText = id;
-            document.getElementById('status').innerText = "Wyślij kod dziewczynie lub wpisz jej kod!";
-            document.getElementById('status').style.color = "#4a4a4a";
-        });
+            peer.on('open', (id) => {
+                document.getElementById('myId').innerText = id;
+                document.getElementById('status').innerText = "Oczekiwanie na połączenie...";
+            });
 
-        // Obsługa błędu, gdyby kod był już zajęty przez kogoś na świecie
-        peer.on('error', (err) => {
-            if(err.type === 'unavailable-id') {
-                document.getElementById('status').innerText = "Ten kod był zajęty. Odświeżam stronę...";
-                setTimeout(() => { location.reload(); }, 1500);
-            } else {
-                alert("Błąd połączenia: " + err.type);
-            }
-        });
+            peer.on('error', (err) => {
+                if (err.type === 'unavailable-id') {
+                    // Jeśli kod zajęty, spróbuj ponownie z innym
+                    initPeer();
+                } else {
+                    document.getElementById('status').innerText = "Błąd: " + err.type;
+                }
+            });
 
-        peer.on('connection', (connection) => {
-            setupConnection(connection);
-        });
+            peer.on('connection', (connection) => {
+                setupConnection(connection);
+            });
+        }
+
+        initPeer();
 
         function connectToFriend() {
             const friendId = document.getElementById('friendId').value.trim();
-            if (friendId.length !== 5) return alert('Kod musi mieć dokładnie 5 cyfr!');
+            if (friendId.length !== 5) return alert('Kod musi mieć 5 cyfr!');
             
-            document.getElementById('status').innerText = "Łączenie z kodem " + friendId + "...";
+            document.getElementById('status').innerText = "Łączenie...";
             const connection = peer.connect(friendId);
             setupConnection(connection);
         }
@@ -204,8 +200,8 @@
             conn = connection;
             
             conn.on('open', () => {
-                document.getElementById('status').innerText = "✅ Połączeni! Malujcie kotki! 🐱❤️🐱";
-                document.getElementById('status').style.color = "#2ecc71";
+                document.getElementById('status').innerText = "Połączono pomyślnie!";
+                document.getElementById('status').style.color = "green";
             });
 
             conn.on('data', (data) => {
@@ -215,13 +211,11 @@
                     ctx.beginPath();
                     ctx.moveTo(data.x, data.y);
                 } else if (data.type === 'draw') {
-                    // Żeby było widać, kto rysuje: linie partnera będą fioletowe!
-                    ctx.strokeStyle = "#9b59b6"; 
+                    ctx.strokeStyle = "#dc3545"; // Kolor linii drugiego gracza (czerwony)
                     ctx.lineTo(data.x, data.y);
                     ctx.stroke();
                     ctx.beginPath();
                     ctx.moveTo(data.x, data.y);
-                    ctx.strokeStyle = "#ff4773"; // Powrót do Twojego koloru
                 } else if (data.type === 'stop') {
                     ctx.beginPath();
                 }
@@ -251,7 +245,7 @@
         function draw(e) {
             if (!isDrawing) return;
             const pos = getPos(e);
-            ctx.strokeStyle = "#ff4773"; // Twój kolor (różowo-czerwony)
+            ctx.strokeStyle = "#007bff"; // Twój kolor linii (niebieski)
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
             ctx.beginPath();
@@ -270,13 +264,13 @@
             if (conn && conn.open) conn.send({ type: 'clear' });
         }
 
-        // Myszką
+        // Myszką (PC)
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
 
-        // Dotyk (Telefon)
+        // Dotyk (Ekran dotykowy)
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
         canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
         canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
