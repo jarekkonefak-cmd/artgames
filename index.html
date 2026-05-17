@@ -140,10 +140,28 @@ font-weight: 700;
 font-size: 15px;
 transition: all 0.2s;
 box-shadow: 0 4px 14px rgba(0, 122, 255, 0.3);
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 8px;
 }
 button.btn-action:hover { filter: brightness(1.1); transform: translateY(-2px); }
+
+button.btn-eraser {
+background: #ffffff;
+color: #333;
+border: 2px solid #e5e5ea;
+box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+padding: 10px 18px;
+}
+button.btn-eraser.active-tool {
+border-color: var(--accent);
+background: #f0f8ff;
+}
+
 button.btn-clear { background: #ff3b30; box-shadow: 0 4px 14px rgba(255, 59, 48, 0.3); }
 button.btn-waiting { background: #ffcc00; color: #1d1d1f; box-shadow: 0 4px 14px rgba(255, 204, 0, 0.3); }
+button.btn-finish { background: #34c759; box-shadow: 0 4px 14px rgba(52, 199, 89, 0.3); }
 
 .canvas-wrapper {
 position: relative;
@@ -176,7 +194,7 @@ display: block;
 <div class="header-top">
 <div id="status">Łączenie...</div>
 <div class="level-indicator" id="levelTitle">Etap 1: Szkic Kotków</div>
-<div>
+<div style="display: flex; gap: 10px;">
 <button class="btn-action btn-clear" onclick="clearCanvasCommand()">Wyczyść</button>
 <button class="btn-action" id="nextLevelBtn" onclick="requestNextLevel()">Dalej ➔</button>
 </div>
@@ -188,6 +206,7 @@ display: block;
 <span id="brushSizeLabel">Grubość: 4px</span>
 <input type="range" id="brushSize" min="1" max="50" value="4" oninput="updateBrushSize(this.value)">
 </div>
+<button class="btn-action btn-eraser" id="eraserBtn" onclick="setEraserMode()">🧽 Gumka</button>
 </div>
 <div class="tools-row" id="toolsContainer"></div>
 </div>
@@ -214,56 +233,65 @@ const toolsContainer = document.getElementById('toolsContainer');
 const nextLevelBtn = document.getElementById('nextLevelBtn');
 const brushSizeSlider = document.getElementById('brushSize');
 const brushSizeLabel = document.getElementById('brushSizeLabel');
+const eraserBtn = document.getElementById('eraserBtn');
 
 let currentLevel = 1;
 let isDrawing = false;
 let currentStroke = [];
 let lastPos = null;
 
-// Poprawiony mechanizm synchronizacji poziomów
 let myReadyLevel = 0;
 let partnerReadyLevel = 0;
 
 const myClientId = 'user_' + Math.random().toString(16).substr(2, 8);
 let currentTool = { color: '#000000', width: 4 };
+let isEraserActive = false;
 
-// --- ZUPEŁNIE NOWY, PIĘKNY RYSUNEK KOTKÓW ---
-function drawArtPath(ctx) {
-// Lewy Kotek (Biały)
-ctx.moveTo(240, 520);
-ctx.bezierCurveTo(240, 360, 260, 300, 310, 260); // lewy bok
-ctx.bezierCurveTo(280, 200, 340, 180, 370, 220); // głowa
-ctx.lineTo(330, 130); ctx.lineTo(370, 180); // lewe ucho
-ctx.lineTo(410, 130); ctx.lineTo(400, 190); // prawe ucho
-ctx.bezierCurveTo(440, 220, 420, 280, 380, 300); // głowa prawy bok
-ctx.bezierCurveTo(400, 360, 420, 450, 420, 520); // prawy bok tułowia
+function drawCatsOutline(ctx) {
+ctx.beginPath();
 
-// Prawy Kotek (Rudy)
-ctx.moveTo(400, 520);
-ctx.bezierCurveTo(400, 420, 410, 350, 450, 290); // lewy bok
-ctx.bezierCurveTo(440, 230, 480, 190, 520, 230); // głowa
-ctx.lineTo(500, 150); ctx.lineTo(530, 195); // lewe ucho
-ctx.lineTo(580, 150); ctx.lineTo(550, 205); // prawe ucho
-ctx.bezierCurveTo(590, 240, 560, 290, 530, 310); // głowa prawy bok
-ctx.bezierCurveTo(570, 380, 580, 450, 580, 520); // prawy bok tułowia
+// Lewy Kot
+ctx.ellipse(300, 420, 110, 130, 0, 0, Math.PI*2);
+ctx.moveTo(210, 330); ctx.lineTo(200, 180); ctx.lineTo(280, 295);
+ctx.moveTo(390, 330); ctx.lineTo(400, 180); ctx.lineTo(320, 295);
 
-// Ogony - Serce
-ctx.moveTo(260, 480);
-ctx.bezierCurveTo(50, 480, 100, 270, 400, 390); // Ogon lewy
+// Prawy Kot
+ctx.moveTo(670, 400);
+ctx.ellipse(540, 400, 130, 150, 0, 0, Math.PI*2);
+ctx.moveTo(435, 290); ctx.lineTo(420, 140); ctx.lineTo(500, 240);
+ctx.moveTo(645, 290); ctx.lineTo(660, 140); ctx.lineTo(580, 240);
 
-ctx.moveTo(560, 480);
-ctx.bezierCurveTo(770, 480, 720, 270, 400, 390); // Ogon prawy
+// Ogony
+ctx.moveTo(200, 520);
+ctx.bezierCurveTo(30, 520, 30, 370, 120, 370);
+ctx.moveTo(660, 520);
+ctx.bezierCurveTo(870, 520, 870, 370, 750, 370);
 
-// Księżyc
-ctx.moveTo(520, 180);
-ctx.arc(410, 180, 110, 0, Math.PI * 2);
+ctx.stroke();
+}
 
-// Chmurka
-ctx.moveTo(100, 250);
-ctx.bezierCurveTo(100, 220, 150, 220, 160, 240);
-ctx.bezierCurveTo(190, 220, 220, 250, 200, 270);
-ctx.bezierCurveTo(220, 300, 150, 300, 140, 280);
-ctx.bezierCurveTo(90, 290, 90, 260, 100, 250);
+function drawCatsDetails(ctx) {
+ctx.fillStyle = "#1c1c1e";
+
+// Kot lewy
+ctx.beginPath(); ctx.arc(260, 390, 12, 0, Math.PI*2); ctx.fill();
+ctx.beginPath(); ctx.arc(340, 390, 12, 0, Math.PI*2); ctx.fill();
+ctx.beginPath();
+ctx.moveTo(285, 410); ctx.bezierCurveTo(285, 425, 300, 425, 300, 410);
+ctx.bezierCurveTo(300, 425, 315, 425, 315, 410); ctx.stroke();
+
+// Kot prawy
+ctx.beginPath(); ctx.arc(480, 370, 14, 0, Math.PI*2); ctx.fill();
+ctx.beginPath(); ctx.arc(600, 370, 14, 0, Math.PI*2); ctx.fill();
+ctx.beginPath();
+ctx.moveTo(520, 395); ctx.bezierCurveTo(520, 415, 540, 415, 540, 395);
+ctx.bezierCurveTo(540, 415, 560, 415, 560, 395); ctx.stroke();
+
+ctx.fillStyle = "rgba(255, 105, 180, 0.4)";
+ctx.beginPath(); ctx.ellipse(235, 410, 15, 8, 0, 0, Math.PI*2); ctx.fill();
+ctx.beginPath(); ctx.ellipse(365, 410, 15, 8, 0, 0, Math.PI*2); ctx.fill();
+ctx.beginPath(); ctx.ellipse(445, 395, 18, 10, 0, 0, Math.PI*2); ctx.fill();
+ctx.beginPath(); ctx.ellipse(635, 395, 18, 10, 0, 0, Math.PI*2); ctx.fill();
 }
 
 function updateBackgroundGuide(level) {
@@ -271,98 +299,89 @@ bgCtx.clearRect(0, 0, width, height);
 bgCtx.lineJoin = "round"; bgCtx.lineCap = "round";
 
 if (level === 1) {
-// Etap 1: Szkic (Tylko jasne, przerywane linie do obrysowania)
 bgCtx.setLineDash([12, 18]);
-bgCtx.lineWidth = 5;
+bgCtx.lineWidth = 6;
 bgCtx.strokeStyle = "#adb5bd";
-bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
+drawCatsOutline(bgCtx);
 bgCtx.setLineDash([]);
 }
 else if (level === 2) {
-// Etap 2: Kolory (Podkład)
-bgCtx.fillStyle = "#1e1b4b"; // Nocne niebo
+bgCtx.fillStyle = "#fffbeb";
 bgCtx.fillRect(0,0, width, height);
+bgCtx.filter = "blur(15px)";
 
-// Rozmyte plamy jako profesjonalne podpowiedzi
-bgCtx.filter = "blur(18px)";
+bgCtx.fillStyle = "#f1f5f9";
+bgCtx.beginPath(); ctx.ellipse(300, 420, 100, 120, 0, 0, Math.PI*2); bgCtx.fill();
 
-// Księżyc
-bgCtx.fillStyle = "#fef08a";
-bgCtx.beginPath(); bgCtx.arc(410, 180, 100, 0, Math.PI * 2); bgCtx.fill();
-
-// Lewy Kot (Biały)
-bgCtx.fillStyle = "#f8fafc";
-bgCtx.beginPath(); bgCtx.ellipse(330, 400, 60, 110, 0, 0, Math.PI*2); bgCtx.fill();
-bgCtx.beginPath(); bgCtx.arc(340, 240, 40, 0, Math.PI*2); bgCtx.fill();
-
-// Prawy Kot (Rudy)
-bgCtx.fillStyle = "#ea580c";
-bgCtx.beginPath(); bgCtx.ellipse(490, 400, 60, 110, 0, 0, Math.PI*2); bgCtx.fill();
-bgCtx.beginPath(); bgCtx.arc(490, 240, 40, 0, Math.PI*2); bgCtx.fill();
-
+bgCtx.fillStyle = "#fb923c";
+bgCtx.beginPath(); ctx.ellipse(540, 400, 120, 140, 0, 0, Math.PI*2); bgCtx.fill();
 bgCtx.filter = "none";
 
-// Lekki obrys by nie zgubić kształtów
-bgCtx.lineWidth = 2;
-bgCtx.strokeStyle = "rgba(255,255,255,0.2)";
-bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
+bgCtx.lineWidth = 3;
+bgCtx.strokeStyle = "rgba(0,0,0,0.1)";
+drawCatsOutline(bgCtx);
 }
 else if (level === 3) {
-// Etap 3: Cienie (Detale)
-bgCtx.fillStyle = "#1e1b4b";
+bgCtx.fillStyle = "#fffbeb";
 bgCtx.fillRect(0,0, width, height);
 
-bgCtx.lineWidth = 1;
-bgCtx.strokeStyle = "rgba(255,255,255,0.15)";
-bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
+bgCtx.lineWidth = 2;
+bgCtx.strokeStyle = "rgba(0,0,0,0.1)";
+drawCatsOutline(bgCtx);
+
+bgCtx.lineWidth = 3;
+bgCtx.strokeStyle = "#1c1c1e";
+drawCatsDetails(bgCtx);
 
 bgCtx.filter = "blur(12px)";
-
-// Głębia i cień u podstawy kotków
-bgCtx.fillStyle = "rgba(0,0,0,0.7)";
-bgCtx.beginPath(); bgCtx.ellipse(320, 500, 70, 30, 0, 0, Math.PI*2); bgCtx.fill();
-bgCtx.beginPath(); bgCtx.ellipse(500, 500, 70, 30, 0, 0, Math.PI*2); bgCtx.fill();
-
-// Cień księżyca
-bgCtx.fillStyle = "rgba(0,0,0,0.3)";
-bgCtx.beginPath(); bgCtx.arc(380, 190, 90, 0, Math.PI*2); bgCtx.fill();
-
-// Blask na krawędziach kotków od księżyca
-bgCtx.fillStyle = "rgba(255,255,255,0.6)";
-bgCtx.beginPath(); bgCtx.ellipse(380, 240, 15, 30, Math.PI/4, 0, Math.PI*2); bgCtx.fill();
-bgCtx.beginPath(); bgCtx.ellipse(450, 240, 15, 30, -Math.PI/4, 0, Math.PI*2); bgCtx.fill();
-
+bgCtx.fillStyle = "rgba(0,0,0,0.15)";
+bgCtx.beginPath(); bgCtx.ellipse(300, 540, 90, 20, 0, 0, Math.PI*2); bgCtx.fill();
+bgCtx.beginPath(); bgCtx.ellipse(540, 540, 110, 25, 0, 0, Math.PI*2); bgCtx.fill();
 bgCtx.filter = "none";
 }
+else if (level === 4) {
+// ETAP 4: Finał - Znikają podpowiedzi, zostaje samo dzieło!
+bgCtx.fillStyle = "#fffbeb";
+bgCtx.fillRect(0,0, width, height);
+
+// Elegancka, podwójna złota ramka
+bgCtx.lineWidth = 14;
+bgCtx.strokeStyle = "#fef08a";
+bgCtx.strokeRect(10, 10, width-20, height-20);
+
+bgCtx.lineWidth = 4;
+bgCtx.strokeStyle = "#fb923c";
+bgCtx.strokeRect(17, 17, width-34, height-34);
+}
 }
 
-// --- INTERFEJS ---
 function updateBrushSize(val) {
 currentTool.width = parseInt(val);
 brushSizeLabel.innerText = `Grubość: ${val}px`;
 }
 
+function setEraserMode() {
+isEraserActive = true;
+document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('active-tool'));
+eraserBtn.classList.add('active-tool');
+}
+
 function updateToolbar(level) {
 toolsContainer.innerHTML = '';
 
-const createSwatch = (color, defaultWidth, isEraser = false) => {
+const createSwatch = (color, defaultWidth) => {
 const btn = document.createElement('div');
 btn.className = 'color-swatch';
-btn.style.background = isEraser ? 'repeating-linear-gradient(45deg, #fff, #fff 5px, #ccc 5px, #ccc 10px)' : color;
+btn.style.background = color;
 btn.onclick = () => {
-currentTool.color = isEraser ? '#ffffff' : color;
+isEraserActive = false;
+currentTool.color = color;
 brushSizeSlider.value = defaultWidth;
 updateBrushSize(defaultWidth);
 
 document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('active-tool'));
+eraserBtn.classList.remove('active-tool');
 btn.classList.add('active-tool');
-
-if (isEraser) {
-fillCtx.globalCompositeOperation = "destination-out";
-} else {
-fillCtx.globalCompositeOperation = "source-over";
-outlineCtx.globalCompositeOperation = "source-over";
-}
 };
 toolsContainer.appendChild(btn);
 return btn;
@@ -370,34 +389,48 @@ return btn;
 
 let defaultSwatch;
 if (level === 1) {
-levelTitle.innerText = "Etap 1: Obrysuj Kotki (Kontury)";
-defaultSwatch = createSwatch('#1c1c1e', 5); // Czarny
-createSwatch('#48484a', 5); // Ciemny szary
-createSwatch('#d1d1d6', 5); // Jasny szary (na księżyc)
+levelTitle.innerText = "Etap 1: Obrysuj Kotki";
+defaultSwatch = createSwatch('#1c1c1e', 5);
+createSwatch('#48484a', 5);
 } else if (level === 2) {
 levelTitle.innerText = "Etap 2: Wypełnij Kotki Kolorami";
-defaultSwatch = createSwatch('#f8fafc', 35); // Kot 1 (Biały)
-createSwatch('#ea580c', 35); // Kot 2 (Rudy)
-createSwatch('#fef08a', 45); // Księżyc (Żółty)
-createSwatch('#1e1b4b', 50); // Niebo (Granatowe)
-createSwatch('#fb7185', 20); // Uszka (Różowy)
-createSwatch('#ffffff', 40, true); // Gumka
+defaultSwatch = createSwatch('#f8fafc', 35);
+createSwatch('#fb923c', 35);
+createSwatch('#fef08a', 40);
+createSwatch('#fb7185', 25);
+createSwatch('#34d399', 35);
 } else if (level === 3) {
-levelTitle.innerText = "Etap 3: Dodaj Głębię i Cienie";
-defaultSwatch = createSwatch('rgba(0,0,0,0.15)', 40); // Cień delikatny
-createSwatch('rgba(0,0,0,0.35)', 30); // Cień mocny
-createSwatch('rgba(255,255,255,0.4)', 30); // Światło
-createSwatch('#fb7185', 10); // Róż na detale
+levelTitle.innerText = "Etap 3: Oczy, Wąsy i Cienie";
+defaultSwatch = createSwatch('#1c1c1e', 4);
+createSwatch('rgba(0,0,0,0.15)', 40);
+createSwatch('rgba(255,255,255,0.6)', 20);
+createSwatch('#ff69b4', 15);
+} else if (level === 4) {
+levelTitle.innerText = "🎉 Gotowe Dzieło! (Czas na podpisy)";
+defaultSwatch = createSwatch('#1c1c1e', 3); // Cienkopis do podpisu
+createSwatch('#d4af37', 5); // Złoty długopis
+createSwatch('#fb7185', 5); // Różowy pisak
 }
 if(defaultSwatch) defaultSwatch.click();
 }
 
 function changeLevel(lvl) {
 currentLevel = lvl;
-if(currentLevel > 3) currentLevel = 1;
+if(currentLevel > 4) currentLevel = 1;
 
-fillCtx.globalCompositeOperation = "source-over";
-outlineCtx.globalCompositeOperation = "source-over";
+isEraserActive = false;
+eraserBtn.classList.remove('active-tool');
+
+// Stylizacja przycisku Dalej / Od nowa
+if (currentLevel === 4) {
+nextLevelBtn.innerText = "Od nowa ↺";
+nextLevelBtn.classList.add('btn-finish');
+eraserBtn.style.display = "none"; // Chowamy gumkę przy podpisach
+} else {
+nextLevelBtn.innerText = "Dalej ➔";
+nextLevelBtn.classList.remove('btn-finish');
+eraserBtn.style.display = "block";
+}
 
 updateBackgroundGuide(currentLevel);
 updateToolbar(currentLevel);
@@ -405,20 +438,15 @@ updateToolbar(currentLevel);
 
 changeLevel(1);
 
-// --- BEZBŁĘDNA KOMUNIKACJA SIECIOWA ---
+// --- KOMUNIKACJA SIECIOWA ---
 const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
-const topic = "artworkout/cats_pro_ipad_8899"; // Zmieniony kanał dla czystego startu
+const topic = "artworkout/kawaii_cats_v2";
 const client = mqtt.connect(brokerUrl);
 
 client.on('connect', () => {
 statusEl.innerText = "Połączono online";
 statusEl.className = 'status-connected';
 client.subscribe(topic);
-});
-
-client.on('error', () => {
-statusEl.innerText = "Brak sieci";
-statusEl.className = 'status-error';
 });
 
 client.on('message', (topic, message) => {
@@ -432,7 +460,6 @@ outlineCtx.clearRect(0, 0, width, height);
 else if (data.type === 'full_stroke') {
 drawReceivedStroke(data.points, data.color, data.width, data.layer, data.isEraser);
 }
-// Odbiór informacji o gotowości
 else if (data.type === 'ready_for_level') {
 partnerReadyLevel = data.level;
 checkLevelAdvance();
@@ -440,8 +467,7 @@ checkLevelAdvance();
 });
 
 function requestNextLevel() {
-const targetLevel = currentLevel === 3 ? 1 : currentLevel + 1;
-
+const targetLevel = currentLevel === 4 ? 1 : currentLevel + 1;
 if (myReadyLevel === targetLevel) return;
 
 myReadyLevel = targetLevel;
@@ -449,22 +475,26 @@ nextLevelBtn.innerText = "Czekam...";
 nextLevelBtn.classList.add('btn-waiting');
 
 if (client.connected) {
-// Teraz wysyłamy informację, NA KTÓRY poziom czekamy
 client.publish(topic, JSON.stringify({ id: myClientId, type: 'ready_for_level', level: targetLevel }));
 }
 checkLevelAdvance();
 }
 
 function checkLevelAdvance() {
-const targetLevel = currentLevel === 3 ? 1 : currentLevel + 1;
+const targetLevel = currentLevel === 4 ? 1 : currentLevel + 1;
 
-// Poziom zmienia się TYLKO gdy obie strony zgadzają się co do docelowego poziomu
 if (myReadyLevel === targetLevel && partnerReadyLevel === targetLevel) {
+
+// Jeśli oboje klikną "Od nowa" (czyli przejście z poziomu 4 na 1), czyścimy całe płótno
+if (currentLevel === 4 && targetLevel === 1) {
+fillCtx.clearRect(0, 0, width, height);
+outlineCtx.clearRect(0, 0, width, height);
+}
+
 changeLevel(targetLevel);
 
 myReadyLevel = 0;
 partnerReadyLevel = 0;
-nextLevelBtn.innerText = "Dalej ➔";
 nextLevelBtn.classList.remove('btn-waiting');
 }
 }
@@ -475,20 +505,21 @@ outlineCtx.clearRect(0, 0, width, height);
 if (client.connected) client.publish(topic, JSON.stringify({ id: myClientId, type: 'clear' }));
 }
 
-// --- MECHANIKA RYSOWANIA NA WARSTWACH ---
+// --- MECHANIKA RYSOWANIA ---
 function getActiveContext() {
-return currentLevel === 1 ? outlineCtx : fillCtx;
+// W etapie 4 (podpisy) piszemy po warstwie z konturami, żeby były zawsze na wierzchu
+return (currentLevel === 1 || currentLevel === 4) ? outlineCtx : fillCtx;
 }
 
-function drawReceivedStroke(points, color, strokeWidth, targetLayer, isEraser) {
+function drawReceivedStroke(points, color, strokeWidth, targetLayer, isEraserMsg) {
 if (!points || points.length < 2) return;
 
 const ctx = targetLayer === 'outline' ? outlineCtx : fillCtx;
 
 ctx.save();
-if (isEraser) ctx.globalCompositeOperation = "destination-out";
+ctx.globalCompositeOperation = isEraserMsg ? "destination-out" : "source-over";
 
-ctx.strokeStyle = color;
+ctx.strokeStyle = isEraserMsg ? "rgba(0,0,0,1)" : color;
 ctx.lineWidth = strokeWidth;
 ctx.lineCap = "round"; ctx.lineJoin = "round";
 
@@ -523,7 +554,10 @@ if (!isDrawing) return;
 const currentPos = getPos(e);
 const ctx = getActiveContext();
 
-ctx.strokeStyle = currentTool.color;
+ctx.save();
+ctx.globalCompositeOperation = isEraserActive ? "destination-out" : "source-over";
+
+ctx.strokeStyle = isEraserActive ? "rgba(0,0,0,1)" : currentTool.color;
 ctx.lineWidth = currentTool.width;
 ctx.lineCap = "round"; ctx.lineJoin = "round";
 
@@ -531,6 +565,7 @@ ctx.beginPath();
 ctx.moveTo(lastPos.x, lastPos.y);
 ctx.lineTo(currentPos.x, currentPos.y);
 ctx.stroke();
+ctx.restore();
 
 currentStroke.push(currentPos);
 lastPos = currentPos;
@@ -546,8 +581,8 @@ id: myClientId,
 type: 'full_stroke',
 color: currentTool.color,
 width: currentTool.width,
-layer: currentLevel === 1 ? 'outline' : 'fill',
-isEraser: fillCtx.globalCompositeOperation === "destination-out",
+layer: (currentLevel === 1 || currentLevel === 4) ? 'outline' : 'fill',
+isEraser: isEraserActive,
 points: currentStroke
 }));
 }
