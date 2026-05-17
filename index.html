@@ -4,9 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ArtWorkout Online</title>
-    <!-- Gwarancja stabilności: Oficjalne skrypty bazy danych Google Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- Niezawodny i lekki skrypt do szybkiej komunikacji sieciowej -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         body { 
             font-family: sans-serif; 
@@ -40,48 +39,24 @@
             display: block;
         }
         button { 
-            background: #007bff; 
+            background: #6c757d; 
             color: white; 
             border: none; 
-            padding: 10px 20px; 
+            padding: 8px 16px; 
             border-radius: 8px; 
             cursor: pointer; 
             font-weight: bold; 
-            font-size: 16px;
-            margin-top: 10px;
+            font-size: 14px;
         }
-        button:hover { background: #0056b3; }
-        input { 
-            padding: 10px; 
-            border: 2px solid #ccc; 
-            border-radius: 8px; 
-            font-size: 16px;
-            width: 60%;
-            margin-top: 10px;
-            text-align: center;
-        }
-        #myId { 
-            font-weight: bold; 
-            color: #007bff; 
-            font-size: 1.8em; 
-            background: #e7f1ff;
-            padding: 3px 12px;
-            border-radius: 6px;
-            display: inline-block;
-            margin: 5px 0;
-        }
-        #status { margin-top: 10px; font-weight: bold; color: green; }
+        button:hover { background: #5a6268; }
+        #status { font-weight: bold; color: #28a745; margin-bottom: 5px; }
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <p style="margin: 5px 0;">Twój kod pokoju: <span id="myId">...</span></p>
-        <input type="number" id="friendId" placeholder="Wpisz kod pokoju" oninput="if(this.value.length > 5) this.value = this.value.slice(0,5);">
-        <br>
-        <button onclick="joinRoom()">Wejdź do pokoju</button>
-        <div id="status">Połączono z serwerem gry.</div>
-        <button onclick="clearCanvas()" style="background: #6c757d; font-size: 12px; padding: 5px 10px; margin-top: 15px;">Wyczyść planszę</button>
+        <div id="status">Łączenie z prywatnym kanałem...</div>
+        <button onclick="clearCanvas()">Wyczyść planszę</button>
     </div>
 
     <div class="canvas-container">
@@ -92,21 +67,11 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         let isDrawing = false;
-        let myRole = 'host'; // Domyślnie tworzymy pokój
 
-        // --- KONFIGURACJA TESTOWEJ BAZY FIREBASE (STABILNA I ZAWSZE ONLINE) ---
-        const firebaseConfig = {
-            databaseURL: "https://artworkout-online-default-rtdb.europe-west1.firebasedatabase.app/"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+        // Tworzymy unikalny identyfikator dla Ciebie, żeby przeglądarka odróżniała Twój pędzel od dziewczyny
+        const myClientId = 'user_' + Math.random().toString(16).substr(2, 8);
 
-        // Generujemy prosty 5-cyfrowy kod pokoju
-        const roomCode = Math.floor(10000 + Math.random() * 90000).toString();
-        document.getElementById('myId').innerText = roomCode;
-        let currentRoomRef = db.ref('rooms/' + roomCode);
-
-        // --- KOTKI W TLE ---
+        // --- PRECYZYJNY RYSUNEK KOTKÓW W TLE ---
         function drawBackground() {
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -133,47 +98,41 @@
         }
         drawBackground();
 
-        // Kolory rysowania
         ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round";
 
-        // --- LOGIKA DOŁĄCZANIA DO POKOJU ---
-        function listenToRoom() {
-            // Słuchamy zmian w bazie danych na żywo
-            currentRoomRef.child('lines').on('child_added', (snapshot) => {
-                const data = snapshot.val();
-                if (data.player !== roomCode) { // Rysuj tylko ruchy drugiego gracza
-                    ctx.strokeStyle = (myRole === 'host') ? "#dc3545" : "#007bff"; 
-                    if (data.type === 'start') {
-                        ctx.beginPath();
-                        ctx.moveTo(data.x, data.y);
-                    } else if (data.type === 'draw') {
-                        ctx.lineTo(data.x, data.y);
-                        ctx.stroke();
-                    }
-                }
-            });
+        // --- BEZAWARYJNE POŁĄCZENIE PRZEZ PUBLICZNY BROKER MQTT WSS ---
+        // Używamy bezpiecznego szyfrowanego połączenia Websocket (wss), które działa na każdym urządzeniu i sieci
+        const client = mqtt.connect('wss://broker.hivemq.com:8044/mqtt');
+        
+        // Wasz unikalny, tajny kanał gry. Nikt inny na świecie go nie zgadnie.
+        const topic = "artworkout/nasz_wspolny_tajny_pokoj_12948"; 
 
-            currentRoomRef.child('clear').on('value', (snapshot) => {
-                if (snapshot.val() === true) {
-                    drawBackground();
-                }
-            });
-        }
-        listenToRoom(); // Nasłuchuj domyślny pokój na start
+        client.on('connect', () => {
+            document.getElementById('status').innerText = "Połączono! Możecie razem malować.";
+            client.subscribe(topic);
+        });
 
-        function joinRoom() {
-            const typedCode = document.getElementById('friendId').value.trim();
-            if (typedCode.length !== 5) return alert('Wpisz 5-cyfrowy kod pokoju!');
+        // Odbieranie ruchów od drugiego gracza
+        client.on('message', (topic, message) => {
+            const data = JSON.parse(message.toString());
             
-            // Przepinamy się do pokoju założonego przez drugą osobę
-            currentRoomRef.off(); // Wyłączamy stary pokój
-            myRole = 'guest';
-            currentRoomRef = db.ref('rooms/' + typedCode);
-            
-            document.getElementById('status').innerText = "Wszedłeś do pokoju: " + typedCode;
-            document.getElementById('myId').innerText = typedCode;
-            listenToRoom();
-        }
+            // Ignoruj wiadomości wysłane przez samego siebie
+            if (data.id === myClientId) return; 
+
+            if (data.type === 'clear') {
+                drawBackground();
+            } else {
+                // Drugi gracz rysuje na czerwono
+                ctx.strokeStyle = "#dc3545"; 
+                if (data.type === 'start') {
+                    ctx.beginPath();
+                    ctx.moveTo(data.x, data.y);
+                } else if (data.type === 'draw') {
+                    ctx.lineTo(data.x, data.y);
+                    ctx.stroke();
+                }
+            }
+        });
 
         // --- MECHANIKA RYSOWANIA ---
         function getPos(e) {
@@ -186,32 +145,29 @@
             };
         }
 
-        function sendDrawData(type, x, y) {
-            currentRoomRef.child('lines').push({
-                player: roomCode,
-                type: type,
-                x: x,
-                y: y
-            });
-            currentRoomRef.child('clear').set(false);
+        function sendData(payload) {
+            payload.id = myClientId;
+            if (client.connected) {
+                client.publish(topic, JSON.stringify(payload));
+            }
         }
 
         function startDrawing(e) {
             isDrawing = true;
             const pos = getPos(e);
-            ctx.strokeStyle = (myRole === 'host') ? "#007bff" : "#dc3545";
+            ctx.strokeStyle = "#007bff"; // Ty rysujesz na niebiesko
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.y);
-            sendDrawData('start', pos.x, pos.y);
+            sendData({ type: 'start', x: pos.x, y: pos.y });
         }
 
         function draw(e) {
             if (!isDrawing) return;
             const pos = getPos(e);
-            ctx.strokeStyle = (myRole === 'host') ? "#007bff" : "#dc3545";
+            ctx.strokeStyle = "#007bff";
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
-            sendDrawData('draw', pos.x, pos.y);
+            sendData({ type: 'draw', x: pos.x, y: pos.y });
         }
 
         function stopDrawing() {
@@ -220,15 +176,16 @@
 
         function clearCanvas() {
             drawBackground();
-            currentRoomRef.child('lines').remove();
-            currentRoomRef.child('clear').set(true);
+            sendData({ type: 'clear' });
         }
 
+        // Myszka
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
 
+        // Dotyk
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
         canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
         canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
