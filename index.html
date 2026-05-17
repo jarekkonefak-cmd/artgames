@@ -2,31 +2,52 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArtWorkout Online</title>
-<!-- Zaktualizowana biblioteka MQTT z niezawodnego źródła -->
+<!-- Blokada przybliżania - kluczowe dla wygody na iPadzie -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ArtWorkout Online - Tryb Współpracy</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <style>
 body {
-font-family: sans-serif;
+font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 text-align: center;
-background: #f0f2f5;
+background: #e9ecef;
 margin: 0;
-padding: 20px;
+padding: 10px;
 display: flex;
 flex-direction: column;
 align-items: center;
+/* Zabezpieczenie przed gestami nawigacji systemowej */
+overscroll-behavior-y: contain;
 }
-.controls {
-margin-bottom: 20px;
+.header-panel {
+margin-bottom: 15px;
 padding: 15px;
 background: white;
 border-radius: 12px;
 box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-max-width: 400px;
+max-width: 600px;
 width: 100%;
+box-sizing: border-box;
 }
-.canvas-container {
+.level-indicator {
+font-size: 18px;
+font-weight: bold;
+color: #495057;
+margin-bottom: 10px;
+}
+.toolbar {
+display: flex;
+justify-content: center;
+gap: 10px;
+margin-top: 15px;
+flex-wrap: wrap;
+}
+.canvas-wrapper {
+position: relative;
+width: 100%;
+max-width: 600px;
+/* Utrzymanie proporcji 600x500 */
+aspect-ratio: 6/5;
 box-shadow: 0 6px 20px rgba(0,0,0,0.15);
 border-radius: 16px;
 overflow: hidden;
@@ -34,103 +55,208 @@ border: 4px solid #333;
 background: #ffffff;
 }
 canvas {
-cursor: crosshair;
+position: absolute;
+top: 0;
+left: 0;
+width: 100%;
+height: 100%;
+/* Wymagane dla płynnego działania Apple Pencil / dotyku */
 touch-action: none;
 display: block;
 }
+#bgCanvas { z-index: 1; }
+#drawCanvas { z-index: 2; cursor: crosshair; }
+
 button {
 background: #6c757d;
 color: white;
 border: none;
-padding: 10px 20px;
+padding: 10px 16px;
 border-radius: 8px;
 cursor: pointer;
 font-weight: bold;
 font-size: 14px;
-transition: background 0.2s;
+transition: all 0.2s;
 }
-button:hover { background: #5a6268; }
-#status { font-weight: bold; color: #ff9800; margin-bottom: 10px; }
+button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+button.active-tool { border: 2px solid #000; box-shadow: 0 0 5px rgba(0,0,0,0.3); }
+
+.btn-next { background: #007bff; font-size: 16px; padding: 12px 24px; }
+.btn-clear { background: #dc3545; }
+
+#status { font-weight: bold; color: #ff9800; margin-bottom: 5px; font-size: 14px; }
 .status-connected { color: #28a745 !important; }
 .status-error { color: #dc3545 !important; }
+
+/* Kolory narzędzi */
+.tool-black { background: #212529; }
+.tool-pink { background: #ffb6c1; color: black; }
+.tool-blue { background: #add8e6; color: black; }
+.tool-red { background: #ff4d4d; }
+.tool-white { background: #f8f9fa; color: black; border: 1px solid #ccc; }
+.tool-shadow { background: #6c757d; }
+.tool-light { background: #fff3cd; color: black; }
 </style>
 </head>
 <body>
 
-<div class="controls">
-<div id="status">Łączenie z prywatnym kanałem...</div>
-<button onclick="clearCanvasCommand()">Wyczyść planszę</button>
+<div class="header-panel">
+<div id="status">Łączenie z serwerem...</div>
+<div class="level-indicator" id="levelTitle">Poziom 1: Obrys szkicu</div>
+
+<div>
+<button class="btn-clear" onclick="clearCanvasCommand()">Wyczyść rysunek</button>
+<button class="btn-next" id="nextLevelBtn" onclick="requestNextLevel()">Następny Etap ➔</button>
 </div>
 
-<div class="canvas-container">
-<canvas id="gameCanvas" width="600" height="500"></canvas>
+<!-- Dynamiczny przybornik -->
+<div class="toolbar" id="toolsContainer"></div>
+</div>
+
+<div class="canvas-wrapper">
+<canvas id="bgCanvas" width="600" height="500"></canvas>
+<canvas id="drawCanvas" width="600" height="500"></canvas>
 </div>
 
 <script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const bgCanvas = document.getElementById('bgCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+const drawCanvas = document.getElementById('drawCanvas');
+const drawCtx = drawCanvas.getContext('2d');
 const statusEl = document.getElementById('status');
+const levelTitle = document.getElementById('levelTitle');
+const toolsContainer = document.getElementById('toolsContainer');
+const nextLevelBtn = document.getElementById('nextLevelBtn');
 
+let currentLevel = 1;
 let isDrawing = false;
+
+// Zmienne do trzymania całej rysowanej linii
+let currentStroke = [];
 let lastPos = null;
 
+// Zmienne do autoryzacji przejścia na nowy poziom
+let iAmReady = false;
+let partnerIsReady = false;
+
 const myClientId = 'user_' + Math.random().toString(16).substr(2, 8);
-const myColor = `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`;
+let currentTool = { color: '#000000', width: 4 };
 
-ctx.lineWidth = 5;
-ctx.lineCap = "round";
-ctx.lineJoin = "round";
+// --- RYSOWANIE TŁA (PODPOWIEDZI) ---
+function drawCatPaths(ctx) {
+ctx.beginPath(); ctx.arc(230, 200, 45, 0, Math.PI * 2);
+ctx.moveTo(195, 175); ctx.lineTo(190, 140); ctx.lineTo(215, 160);
+ctx.moveTo(245, 160); ctx.lineTo(270, 140); ctx.lineTo(265, 175);
+ctx.moveTo(200, 240); ctx.bezierCurveTo(160, 270, 160, 380, 230, 390); ctx.lineTo(270, 390); ctx.bezierCurveTo(290, 360, 270, 260, 255, 240);
 
-function drawBackground() {
-ctx.fillStyle = "#ffffff";
-ctx.fillRect(0, 0, canvas.width, canvas.height);
+ctx.moveTo(360, 215); ctx.arc(315, 215, 45, 0, Math.PI * 2);
+ctx.moveTo(280, 190); ctx.lineTo(275, 155); ctx.lineTo(300, 175);
+ctx.moveTo(330, 175); ctx.lineTo(355, 155); ctx.lineTo(350, 190);
+ctx.moveTo(290, 253); ctx.bezierCurveTo(280, 280, 300, 360, 320, 390); ctx.lineTo(360, 390); ctx.bezierCurveTo(430, 380, 430, 270, 350, 250);
 
-const prevLineWidth = ctx.lineWidth;
-ctx.lineWidth = 12; ctx.lineCap = "round"; ctx.lineJoin = "round";
-
-ctx.strokeStyle = "rgba(255, 182, 193, 0.5)";
-ctx.beginPath(); ctx.arc(230, 200, 45, 0, Math.PI * 2); ctx.stroke();
-ctx.beginPath(); ctx.moveTo(195, 175); ctx.lineTo(190, 140); ctx.lineTo(215, 160); ctx.moveTo(245, 160); ctx.lineTo(270, 140); ctx.lineTo(265, 175); ctx.stroke();
-ctx.beginPath(); ctx.moveTo(200, 240); ctx.bezierCurveTo(160, 270, 160, 380, 230, 390); ctx.lineTo(270, 390); ctx.bezierCurveTo(290, 360, 270, 260, 255, 240); ctx.stroke();
-
-ctx.strokeStyle = "rgba(173, 216, 230, 0.6)";
-ctx.beginPath(); ctx.arc(315, 215, 45, 0, Math.PI * 2); ctx.stroke();
-ctx.beginPath(); ctx.moveTo(280, 190); ctx.lineTo(275, 155); ctx.lineTo(300, 175); ctx.moveTo(330, 175); ctx.lineTo(355, 155); ctx.lineTo(350, 190); ctx.stroke();
-ctx.beginPath(); ctx.moveTo(290, 253); ctx.bezierCurveTo(280, 280, 300, 360, 320, 390); ctx.lineTo(360, 390); ctx.bezierCurveTo(430, 380, 430, 270, 350, 250); ctx.stroke();
-
-ctx.strokeStyle = "rgba(255, 140, 140, 0.4)";
-ctx.beginPath(); ctx.moveTo(250, 390);
+ctx.moveTo(250, 390);
 ctx.bezierCurveTo(250, 460, 120, 470, 120, 360); ctx.bezierCurveTo(120, 280, 250, 240, 285, 300);
 ctx.bezierCurveTo(320, 240, 450, 280, 450, 360); ctx.bezierCurveTo(450, 470, 320, 460, 320, 390);
-ctx.stroke();
-
-ctx.lineWidth = prevLineWidth;
 }
 
-drawBackground();
+function updateBackgroundGuide(level) {
+bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+bgCtx.lineJoin = "round";
+bgCtx.lineCap = "round";
 
-// Zmiana brokera na stabilniejszy EMQX Public Broker
+if (level === 1) {
+bgCtx.setLineDash([10, 15]);
+bgCtx.lineWidth = 6;
+bgCtx.strokeStyle = "#ced4da";
+drawCatPaths(bgCtx);
+bgCtx.stroke();
+bgCtx.setLineDash([]);
+}
+else if (level === 2) {
+bgCtx.lineWidth = 4;
+bgCtx.strokeStyle = "#e9ecef";
+drawCatPaths(bgCtx);
+bgCtx.stroke();
+
+bgCtx.fillStyle = "rgba(255, 182, 193, 0.4)";
+bgCtx.beginPath(); bgCtx.arc(230, 270, 60, 0, Math.PI*2); bgCtx.fill();
+bgCtx.fillStyle = "rgba(173, 216, 230, 0.4)";
+bgCtx.beginPath(); bgCtx.arc(315, 280, 60, 0, Math.PI*2); bgCtx.fill();
+}
+else if (level === 3) {
+bgCtx.lineWidth = 2;
+bgCtx.strokeStyle = "#e9ecef";
+drawCatPaths(bgCtx);
+bgCtx.stroke();
+
+bgCtx.fillStyle = "rgba(0, 0, 0, 0.1)";
+bgCtx.beginPath(); bgCtx.arc(200, 220, 30, 0, Math.PI*2); bgCtx.fill();
+bgCtx.beginPath(); bgCtx.arc(340, 230, 30, 0, Math.PI*2); bgCtx.fill();
+
+bgCtx.fillStyle = "rgba(255, 255, 150, 0.2)";
+bgCtx.beginPath(); bgCtx.arc(245, 180, 20, 0, Math.PI*2); bgCtx.fill();
+bgCtx.beginPath(); bgCtx.arc(300, 190, 20, 0, Math.PI*2); bgCtx.fill();
+}
+}
+
+function updateToolbar(level) {
+toolsContainer.innerHTML = '';
+const createBtn = (name, color, width, cssClass) => {
+const btn = document.createElement('button');
+btn.innerText = name; btn.className = cssClass;
+btn.onclick = () => setTool(color, width, btn);
+toolsContainer.appendChild(btn); return btn;
+};
+
+let defaultBtn;
+if (level === 1) {
+levelTitle.innerText = "Poziom 1: Obrys (Poprowadź linie po śladzie)";
+defaultBtn = createBtn('Cienkopis', '#000000', 4, 'tool-black');
+} else if (level === 2) {
+levelTitle.innerText = "Poziom 2: Kolorowanie (Wypełnij kształty)";
+createBtn('Czarny obrys', '#000000', 4, 'tool-black');
+defaultBtn = createBtn('Różowy pędzel', '#ffb6c1', 20, 'tool-pink');
+createBtn('Niebieski pędzel', '#add8e6', 20, 'tool-blue');
+createBtn('Czerwony pędzel', '#ff4d4d', 20, 'tool-red');
+createBtn('Biała gumka', '#ffffff', 20, 'tool-white');
+} else if (level === 3) {
+levelTitle.innerText = "Poziom 3: Detale i Światłocień";
+createBtn('Mały pisak', '#000000', 3, 'tool-black');
+defaultBtn = createBtn('Pędzel Cienia', 'rgba(0,0,0,0.15)', 25, 'tool-shadow');
+createBtn('Pędzel Światła', 'rgba(255,255,255,0.6)', 15, 'tool-light');
+}
+if(defaultBtn) defaultBtn.click();
+}
+
+function setTool(color, width, btnElement) {
+currentTool.color = color;
+currentTool.width = width;
+document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active-tool'));
+if(btnElement) btnElement.classList.add('active-tool');
+}
+
+function changeLevel(lvl) {
+currentLevel = lvl;
+if(currentLevel > 3) currentLevel = 1;
+updateBackgroundGuide(currentLevel);
+updateToolbar(currentLevel);
+}
+
+changeLevel(1);
+
+// --- KOMUNIKACJA SIECIOWA (MQTT) ---
 const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
-const topic = "artworkout/nasz_wspolny_tajny_pokoj_12948";
-
+const topic = "artworkout/nasz_tajny_pokoj_ipados_9921";
 const client = mqtt.connect(brokerUrl);
 
-// Obsługa udanego połączenia
 client.on('connect', () => {
-statusEl.innerText = "Połączono! Możecie razem malować.";
+statusEl.innerText = "Połączono! Gracie razem.";
 statusEl.className = 'status-connected';
 client.subscribe(topic);
 });
 
-// Obsługa błędów połączenia - teraz dowiesz się, jeśli coś blokuje ruch
-client.on('error', (err) => {
-console.error('Błąd MQTT:', err);
-statusEl.innerText = "Błąd połączenia z serwerem. Sprawdź konsolę (F12).";
-statusEl.className = 'status-error';
-});
-
-client.on('offline', () => {
-statusEl.innerText = "Serwer jest offline lub sieć blokuje WebSockety.";
+client.on('error', () => {
+statusEl.innerText = "Błąd połączenia. Sprawdź sieć.";
 statusEl.className = 'status-error';
 });
 
@@ -139,70 +265,131 @@ const data = JSON.parse(message.toString());
 if (data.id === myClientId) return;
 
 if (data.type === 'clear') {
-drawBackground();
-} else if (data.type === 'line') {
-drawLineSegment(data.x0, data.y0, data.x1, data.y1, data.color);
+drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+}
+// Otrzymanie całej narysowanej linii
+else if (data.type === 'full_stroke') {
+drawReceivedStroke(data.points, data.color, data.width);
+}
+// Logika gotowości do zmiany poziomu
+else if (data.type === 'ready_next_level') {
+partnerIsReady = true;
+checkLevelAdvance();
 }
 });
 
-function drawLineSegment(x0, y0, x1, y1, color) {
-ctx.strokeStyle = color;
-ctx.beginPath();
-ctx.moveTo(x0, y0);
-ctx.lineTo(x1, y1);
-ctx.stroke();
+// --- LOGIKA POZIOMÓW ---
+function requestNextLevel() {
+if (iAmReady) return;
+
+iAmReady = true;
+nextLevelBtn.innerText = "Czekam na partnera...";
+nextLevelBtn.style.backgroundColor = "#ffc107"; // Kolor żółty - oczekiwanie
+nextLevelBtn.style.color = "black";
+
+if (client.connected) {
+client.publish(topic, JSON.stringify({ id: myClientId, type: 'ready_next_level' }));
+}
+checkLevelAdvance();
+}
+
+function checkLevelAdvance() {
+if (iAmReady && partnerIsReady) {
+// Jeśli oboje są gotowi, zmieniamy poziom
+const next = currentLevel === 3 ? 1 : currentLevel + 1;
+changeLevel(next);
+
+// Resetujemy stan przycisków i zmiennych
+iAmReady = false;
+partnerIsReady = false;
+nextLevelBtn.innerText = "Następny Etap ➔";
+nextLevelBtn.style.backgroundColor = "#007bff";
+nextLevelBtn.style.color = "white";
+}
+}
+
+function clearCanvasCommand() {
+drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+if (client.connected) client.publish(topic, JSON.stringify({ id: myClientId, type: 'clear' }));
+}
+
+// --- RYSOWANIE ---
+
+// Funkcja rysująca otrzymaną w całości linię (gwarantuje brak poszarpanych pikseli)
+function drawReceivedStroke(points, color, width) {
+if (!points || points.length < 2) return;
+drawCtx.strokeStyle = color;
+drawCtx.lineWidth = width;
+drawCtx.lineCap = "round";
+drawCtx.lineJoin = "round";
+drawCtx.beginPath();
+drawCtx.moveTo(points[0].x, points[0].y);
+for (let i = 1; i < points.length; i++) {
+drawCtx.lineTo(points[i].x, points[i].y);
+}
+drawCtx.stroke();
 }
 
 function getPos(e) {
-const rect = canvas.getBoundingClientRect();
-const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+const rect = drawCanvas.getBoundingClientRect();
+const scaleX = drawCanvas.width / rect.width;
+const scaleY = drawCanvas.height / rect.height;
+// PointerEvents używają po prostu e.clientX/Y (zarówno dla palca, rysika i myszy)
 return {
-x: (clientX - rect.left) * (canvas.width / rect.width),
-y: (clientY - rect.top) * (canvas.height / rect.height)
+x: Math.round((e.clientX - rect.left) * scaleX),
+y: Math.round((e.clientY - rect.top) * scaleY)
 };
-}
-
-function sendData(payload) {
-payload.id = myClientId;
-if (client.connected) {
-client.publish(topic, JSON.stringify(payload));
-}
 }
 
 function startDrawing(e) {
 isDrawing = true;
-lastPos = getPos(e);
+const pos = getPos(e);
+lastPos = pos;
+currentStroke = [pos]; // Rozpoczynamy zapisywanie punktów dla nowej linii
 }
 
 function draw(e) {
 if (!isDrawing) return;
 const currentPos = getPos(e);
 
-drawLineSegment(lastPos.x, lastPos.y, currentPos.x, currentPos.y, myColor);
+// Rysujemy natychmiastowo lokalnie na naszym ekranie
+drawCtx.strokeStyle = currentTool.color;
+drawCtx.lineWidth = currentTool.width;
+drawCtx.lineCap = "round"; drawCtx.lineJoin = "round";
+drawCtx.beginPath();
+drawCtx.moveTo(lastPos.x, lastPos.y);
+drawCtx.lineTo(currentPos.x, currentPos.y);
+drawCtx.stroke();
 
-sendData({ type: 'line', x0: lastPos.x, y0: lastPos.y, x1: currentPos.x, y1: currentPos.y, color: myColor });
+// Dodajemy punkt do naszej ścieżki
+currentStroke.push(currentPos);
 lastPos = currentPos;
 }
 
-function stopDrawing() {
+function stopDrawing(e) {
+if (!isDrawing) return;
 isDrawing = false;
-lastPos = null;
+
+// Po oderwaniu palca/rysika wysyłamy CAŁĄ narysowaną ścieżkę do drugiej osoby
+if (currentStroke.length > 1 && client.connected) {
+client.publish(topic, JSON.stringify({
+id: myClientId,
+type: 'full_stroke',
+color: currentTool.color,
+width: currentTool.width,
+points: currentStroke
+}));
+}
+currentStroke = []; // Czyścimy tablicę dla następnej linii
 }
 
-function clearCanvasCommand() {
-drawBackground();
-sendData({ type: 'clear' });
-}
+// Nowoczesne zdarzenia PointerEvents (idealne dla iPada, Apple Pencil, myszy i dotyku)
+drawCanvas.addEventListener('pointerdown', startDrawing);
+drawCanvas.addEventListener('pointermove', draw);
+drawCanvas.addEventListener('pointerup', stopDrawing);
+drawCanvas.addEventListener('pointerout', stopDrawing);
+drawCanvas.addEventListener('pointercancel', stopDrawing);
 
-canvas.addEventListener('mousedown', startDrawing);
-canvas.addEventListener('mousemove', draw);
-canvas.addEventListener('mouseup', stopDrawing);
-canvas.addEventListener('mouseout', stopDrawing);
-
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); }, { passive: false });
-canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); }, { passive: false });
-canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); }, { passive: false });
 </script>
 </body>
 </html>
