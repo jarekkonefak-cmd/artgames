@@ -3,143 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nasze ArtWorkout</title>
-    <!-- Pobranie biblioteki PeerJS do połączenia multiplayer -->
+    <title>Nasze Kotkowe ArtWorkout 🐱</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { 
-            font-family: sans-serif; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             text-align: center; 
-            background: #ffe6e6; 
+            background: #fff0f5; 
             margin: 0; 
             padding: 20px; 
             display: flex;
             flex-direction: column;
             align-items: center;
+            color: #4a4a4a;
         }
         .controls { 
-            margin-bottom: 15px; 
+            margin-bottom: 20px; 
             padding: 20px; 
             background: white; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+            border-radius: 20px; 
+            box-shadow: 0 8px 24px rgba(255, 182, 193, 0.4); 
             max-width: 400px;
             width: 100%;
         }
+        .canvas-container {
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-radius: 20px;
+            overflow: hidden;
+            border: 6px solid #ffb6c1;
+        }
         canvas { 
-            border: 4px solid #ff4d4d; 
-            background: white; 
+            background: #ffffff; 
             cursor: crosshair; 
-            touch-action: none; /* Zapobiega przewijaniu ekranu przy rysowaniu palcem */
-            border-radius: 12px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+            touch-action: none;
+            display: block;
         }
         button { 
-            background: #ff4d4d; 
+            background: #ff6b8b; 
             color: white; 
             border: none; 
-            padding: 10px 20px; 
-            border-radius: 8px; 
+            padding: 12px 24px; 
+            border-radius: 12px; 
             cursor: pointer; 
             font-weight: bold; 
             font-size: 16px;
             margin-top: 10px;
+            transition: 0.2s;
         }
-        button:hover { background: #ff3333; }
+        button:hover { background: #ff4773; transform: scale(1.03); }
         input { 
-            padding: 10px; 
-            border: 2px solid #ffcccc; 
-            border-radius: 8px; 
-            font-size: 16px;
-            width: 80%;
+            padding: 12px; 
+            border: 2px solid #ffd1dc; 
+            border-radius: 12px; 
+            font-size: 18px;
+            width: 70%;
             margin-top: 10px;
             text-align: center;
+            letter-spacing: 2px;
         }
-        #myId { font-weight: bold; color: #ff4d4d; font-size: 1.2em; user-select: all; }
-        .instruction { font-size: 0.9em; color: #666; margin-top: 5px; }
+        #myId { 
+            font-weight: bold; 
+            color: #ff4773; 
+            font-size: 2em; 
+            letter-spacing: 3px;
+            background: #ffe5ec;
+            padding: 5px 15px;
+            border-radius: 10px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        #status { margin-top: 15px; font-weight: bold; font-size: 1.1em; color: #ff6b8b; }
     </style>
 </head>
 <body>
 
-    <!-- Panel Sterowania Multiplayer -->
     <div class="controls">
-        <h2 style="margin-top: 0; color: #333;">Połączenie</h2>
-        <p>Twój kod: <br><span id="myId">Generowanie kodu...</span></p>
-        <p class="instruction">(Skopiuj ten kod i wyślij dziewczynie, ALBO wpisz jej kod poniżej)</p>
+        <h2 style="margin: 0 0 10px 0; color: #ff4773;">🐱 Kotkowe Malowanie 🐱</h2>
+        <p style="margin: 5px 0;">Twój 5-cyfrowy kod:</p>
+        <span id="myId">...</span>
         
-        <input type="text" id="friendId" placeholder="Wpisz kod dziewczyny">
         <br>
-        <button onclick="connectToFriend()">Połącz</button>
+        <input type="number" id="friendId" placeholder="Kod dziewczyny" oninput="if(this.value.length > 5) this.value = this.value.slice(0,5);">
+        <br>
+        <button onclick="connectToFriend()">Połącz z ukochaną</button>
         
-        <div id="status" style="margin-top: 15px; color: #ff4d4d; font-weight: bold;">Czekam na połączenie...</div>
-        
-        <button onclick="clearCanvas()" style="margin-top: 15px; background: #666;">Wyczyść planszę</button>
+        <div id="status">Generowanie Twojego kodu...</div>
+        <button onclick="clearCanvas()" style="background: #a8a8a8; font-size: 12px; padding: 6px 12px;">Wyczyść linie</button>
     </div>
 
-    <!-- Płótno do rysowania -->
-    <canvas id="gameCanvas" width="600" height="600"></canvas>
+    <div class="canvas-container">
+        <canvas id="gameCanvas" width="600" height="500"></canvas>
+    </div>
 
     <script>
-        // --- 1. KONFIGURACJA PŁÓTNA (CANVAS) ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         let isDrawing = false;
-        
-        // Rysowanie tła (kształt do obrysowania, jak w ArtWorkout)
-        function drawBackground() {
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, canvas.width, canvas.height); // Czyści planszę
-            
-            // Rysuje grube, jasne kółko na środku
-            ctx.beginPath();
-            ctx.arc(300, 300, 150, 0, Math.PI * 2);
-            ctx.strokeStyle = "#ffe6e6"; // Bardzo jasny różowy
-            ctx.lineWidth = 40;
-            ctx.stroke();
-            ctx.closePath();
-        }
-        drawBackground(); // Wywołujemy na start
+        let conn = null;
 
-        // Ustawienia naszego pędzla
-        ctx.strokeStyle = "#ff4d4d"; // Czerwony kolor pisaka
-        ctx.lineWidth = 10;
+        // --- RYSOWANIE TŁA (DWA PRZYTULAJĄCE SIĘ KOTKI) ---
+        function drawBackground() {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Kotek 1 (Lewy - np. dla Ciebie) - Różowy kontur
+            ctx.strokeStyle = "rgba(255, 182, 193, 0.4)"; 
+            ctx.lineWidth = 15;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            
+            // Ciało lewego kotka
+            ctx.beginPath();
+            ctx.arc(220, 320, 70, 0, Math.PI * 2); 
+            // Głowa lewego kotka
+            ctx.arc(230, 210, 45, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Uszy lewego kotka
+            ctx.beginPath();
+            ctx.moveTo(195, 180); ctx.lineTo(190, 145); ctx.lineTo(215, 170);
+            ctx.moveTo(245, 170); ctx.lineTo(265, 145); ctx.lineTo(260, 180);
+            ctx.stroke();
+
+            // Kotek 2 (Prawy - np. dla Dziewczyny) - Niebieski kontur
+            ctx.strokeStyle = "rgba(173, 216, 230, 0.5)";
+            
+            // Ciało prawego kotka (styka się z lewym!)
+            ctx.beginPath();
+            ctx.arc(360, 320, 70, 0, Math.PI * 2);
+            // Głowa prawego kotka (wtulona w lewego)
+            ctx.arc(350, 220, 45, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Uszy prawego kotka
+            ctx.beginPath();
+            ctx.moveTo(320, 190); ctx.lineTo(315, 155); ctx.lineTo(335, 180);
+            ctx.moveTo(365, 185); ctx.lineTo(390, 155); ctx.lineTo(385, 190);
+            ctx.stroke();
+
+            // Wspólny ogon w kształcie serca!
+            ctx.strokeStyle = "rgba(255, 107, 139, 0.3)";
+            ctx.beginPath();
+            ctx.moveTo(220, 390);
+            ctx.bezierCurveTo(150, 450, 430, 450, 360, 390);
+            ctx.stroke();
+            
+            // Napis informacyjny na dole screena
+            ctx.fillStyle = "#bbb";
+            ctx.font = "16px sans-serif";
+            ctx.fillText("Umalujcie kotki, aby się przytuliły!", 180, 480);
+        }
+        
+        drawBackground();
+
+        // Ustawienia pędzla gracza (Ciemnoróżowy/Malinowy)
+        ctx.strokeStyle = "#ff4773";
+        ctx.lineWidth = 6;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
-        // --- 2. MULTIPLAYER (PEER.JS) ---
-        const peer = new Peer(); // Inicjalizacja połączenia P2P
-        let conn = null; // Tu będziemy trzymać aktywne połączenie
+        // --- SYSTEM MULTIPLAYER Z 5-CYFROWYM KODEM ---
+        
+        // Funkcja generująca losowe 5 cyfr (od 10000 do 99999)
+        const random5DigitCode = Math.floor(10000 + Math.random() * 90000).toString();
+        
+        // Rejestracja w PeerJS z naszym własnym, krótkim ID
+        const peer = new Peer(random5DigitCode);
 
-        // Gdy system wygeneruje Ci unikalne ID
         peer.on('open', (id) => {
             document.getElementById('myId').innerText = id;
+            document.getElementById('status').innerText = "Wyślij kod dziewczynie lub wpisz jej kod!";
+            document.getElementById('status').style.color = "#4a4a4a";
         });
 
-        // Gdy KTOŚ się z Tobą połączy (dziewczyna wpisze Twój kod)
+        // Obsługa błędu, gdyby kod był już zajęty przez kogoś na świecie
+        peer.on('error', (err) => {
+            if(err.type === 'unavailable-id') {
+                document.getElementById('status').innerText = "Ten kod był zajęty. Odświeżam stronę...";
+                setTimeout(() => { location.reload(); }, 1500);
+            } else {
+                alert("Błąd połączenia: " + err.type);
+            }
+        });
+
         peer.on('connection', (connection) => {
             setupConnection(connection);
         });
 
-        // Gdy TY chcesz się połączyć (wpisujesz kod dziewczyny)
         function connectToFriend() {
             const friendId = document.getElementById('friendId').value.trim();
-            if (!friendId) return alert('Najpierw wpisz kod!');
+            if (friendId.length !== 5) return alert('Kod musi mieć dokładnie 5 cyfr!');
             
-            document.getElementById('status').innerText = "Łączenie...";
+            document.getElementById('status').innerText = "Łączenie z kodem " + friendId + "...";
             const connection = peer.connect(friendId);
             setupConnection(connection);
         }
 
-        // Wspólna funkcja konfigurująca działające połączenie
         function setupConnection(connection) {
             conn = connection;
             
             conn.on('open', () => {
-                document.getElementById('status').innerText = "✅ Połączono! Możecie rysować.";
-                document.getElementById('status').style.color = "green";
+                document.getElementById('status').innerText = "✅ Połączeni! Malujcie kotki! 🐱❤️🐱";
+                document.getElementById('status').style.color = "#2ecc71";
             });
 
-            // Odbieranie danych od drugiego gracza
             conn.on('data', (data) => {
                 if (data.type === 'clear') {
                     drawBackground();
@@ -147,32 +215,28 @@
                     ctx.beginPath();
                     ctx.moveTo(data.x, data.y);
                 } else if (data.type === 'draw') {
+                    // Żeby było widać, kto rysuje: linie partnera będą fioletowe!
+                    ctx.strokeStyle = "#9b59b6"; 
                     ctx.lineTo(data.x, data.y);
                     ctx.stroke();
                     ctx.beginPath();
                     ctx.moveTo(data.x, data.y);
+                    ctx.strokeStyle = "#ff4773"; // Powrót do Twojego koloru
                 } else if (data.type === 'stop') {
-                    ctx.beginPath(); // Przerywa łączenie starych linii z nowymi
+                    ctx.beginPath();
                 }
             });
         }
 
-        // --- 3. MECHANIKA RYSOWANIA ---
-        
-        // Oblicza pozycję kursora/palca względem płótna
+        // --- MECHANIKA RYSOWANIA ---
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
-            // Obsługa zarówno dotyku na telefonie, jak i myszki na PC
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             
-            // Skalowanie dla poprawnego rysowania jeśli canvas zmienił rozmiar przez CSS
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-
             return {
-                x: (clientX - rect.left) * scaleX,
-                y: (clientY - rect.top) * scaleY
+                x: (clientX - rect.left) * (canvas.width / rect.width),
+                y: (clientY - rect.top) * (canvas.height / rect.height)
             };
         }
 
@@ -181,22 +245,17 @@
             const pos = getPos(e);
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.y);
-            
-            // Wyślij info do drugiego gracza
             if (conn && conn.open) conn.send({ type: 'start', x: pos.x, y: pos.y });
         }
 
         function draw(e) {
             if (!isDrawing) return;
             const pos = getPos(e);
+            ctx.strokeStyle = "#ff4773"; // Twój kolor (różowo-czerwony)
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
-            
-            // Aby linia była gładka
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.y);
-            
-            // Wyślij info do drugiego gracza
             if (conn && conn.open) conn.send({ type: 'draw', x: pos.x, y: pos.y });
         }
 
@@ -211,13 +270,13 @@
             if (conn && conn.open) conn.send({ type: 'clear' });
         }
 
-        // Nasłuchiwanie zdarzeń - Myszka (PC)
+        // Myszką
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
 
-        // Nasłuchiwanie zdarzeń - Dotyk (Telefony)
+        // Dotyk (Telefon)
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
         canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
         canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
