@@ -3,14 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ArtWorkout Pro - Tryb Współpracy</title>
+<title>ArtWorkout Pro - Urocze Kotki</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <style>
-/* Nowoczesny interfejs w stylu Apple / Glassmorphism */
 :root {
 --bg-color: #f5f7fa;
---glass-bg: rgba(255, 255, 255, 0.75);
---glass-border: rgba(255, 255, 255, 0.4);
+--glass-bg: rgba(255, 255, 255, 0.85);
+--glass-border: rgba(255, 255, 255, 0.5);
 --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 --accent: #007aff;
 }
@@ -18,7 +17,7 @@
 body {
 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 text-align: center;
-background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);
 min-height: 100vh;
 margin: 0;
 padding: 20px;
@@ -30,8 +29,8 @@ overscroll-behavior-y: contain;
 
 .glass-panel {
 background: var(--glass-bg);
-backdrop-filter: blur(16px);
--webkit-backdrop-filter: blur(16px);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
 border: 1px solid var(--glass-border);
 border-radius: 24px;
 box-shadow: var(--shadow);
@@ -53,14 +52,14 @@ border-bottom: 1px solid rgba(0,0,0,0.05);
 
 .level-indicator {
 font-size: 20px;
-font-weight: 600;
+font-weight: 700;
 color: #1d1d1f;
 }
 
 #status {
-font-weight: 500;
+font-weight: 600;
 font-size: 14px;
-padding: 6px 12px;
+padding: 6px 14px;
 border-radius: 20px;
 background: rgba(255, 152, 0, 0.2);
 color: #d97706;
@@ -78,56 +77,55 @@ gap: 15px;
 display: flex;
 justify-content: center;
 align-items: center;
-gap: 12px;
+gap: 14px;
 flex-wrap: wrap;
 }
 
-/* Suwak grubości pędzla */
 .slider-container {
 display: flex;
 align-items: center;
-gap: 10px;
-background: rgba(255,255,255,0.5);
-padding: 8px 16px;
+gap: 12px;
+background: rgba(255,255,255,0.7);
+padding: 8px 18px;
 border-radius: 16px;
 font-size: 14px;
-font-weight: 500;
+font-weight: 600;
 color: #333;
+box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
 }
 
 input[type=range] {
 -webkit-appearance: none;
-width: 120px;
+width: 130px;
 background: transparent;
 }
 input[type=range]::-webkit-slider-thumb {
 -webkit-appearance: none;
-height: 20px; width: 20px;
+height: 22px; width: 22px;
 border-radius: 50%;
 background: var(--accent);
 cursor: pointer;
-margin-top: -8px;
-box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+margin-top: -9px;
+box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
 input[type=range]::-webkit-slider-runnable-track {
-width: 100%; height: 4px;
+width: 100%; height: 5px;
 cursor: pointer;
 background: #d1d1d6;
-border-radius: 2px;
+border-radius: 3px;
 }
 
-/* Swatche kolorów */
 .color-swatch {
-width: 36px; height: 36px;
+width: 38px; height: 38px;
 border-radius: 50%;
 border: 3px solid white;
-box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+box-shadow: 0 4px 10px rgba(0,0,0,0.15);
 cursor: pointer;
 transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.color-swatch:hover { transform: scale(1.1); }
+.color-swatch:hover { transform: scale(1.15); }
 .color-swatch.active-tool {
-transform: scale(1.2);
+transform: scale(1.25);
 border-color: var(--accent);
 }
 
@@ -135,27 +133,26 @@ button.btn-action {
 background: var(--accent);
 color: white;
 border: none;
-padding: 10px 20px;
-border-radius: 12px;
+padding: 12px 24px;
+border-radius: 14px;
 cursor: pointer;
-font-weight: 600;
+font-weight: 700;
 font-size: 15px;
 transition: all 0.2s;
-box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+box-shadow: 0 4px 14px rgba(0, 122, 255, 0.3);
 }
-button.btn-action:hover { filter: brightness(1.1); transform: translateY(-1px); }
-button.btn-clear { background: #ff3b30; box-shadow: 0 4px 12px rgba(255, 59, 48, 0.3); }
-button.btn-waiting { background: #ffcc00; color: #1d1d1f; box-shadow: 0 4px 12px rgba(255, 204, 0, 0.3); }
+button.btn-action:hover { filter: brightness(1.1); transform: translateY(-2px); }
+button.btn-clear { background: #ff3b30; box-shadow: 0 4px 14px rgba(255, 59, 48, 0.3); }
+button.btn-waiting { background: #ffcc00; color: #1d1d1f; box-shadow: 0 4px 14px rgba(255, 204, 0, 0.3); }
 
-/* Obszar roboczy z 3 warstwami */
 .canvas-wrapper {
 position: relative;
 width: 100%;
 max-width: 800px;
 aspect-ratio: 4/3;
-border-radius: 24px;
+border-radius: 28px;
 overflow: hidden;
-box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+box-shadow: 0 16px 50px rgba(0,0,0,0.25);
 background: #ffffff;
 }
 canvas {
@@ -166,10 +163,10 @@ touch-action: none;
 display: block;
 }
 
-#bgCanvas { z-index: 1; } /* Przewodnik (na samym dole) */
-#fillCanvas { z-index: 2; } /* Kolory i cienie (środek) */
-#outlineCanvas { z-index: 3; } /* Kontury (na samej górze - nigdy nie zamalowane) */
-#uiCanvas { z-index: 4; cursor: crosshair; } /* Niewidzialna warstwa do przechwytywania dotyku */
+#bgCanvas { z-index: 1; }
+#fillCanvas { z-index: 2; }
+#outlineCanvas { z-index: 3; }
+#uiCanvas { z-index: 4; cursor: crosshair; }
 
 </style>
 </head>
@@ -178,7 +175,7 @@ display: block;
 <div class="glass-panel">
 <div class="header-top">
 <div id="status">Łączenie...</div>
-<div class="level-indicator" id="levelTitle">Etap 1: Szkic</div>
+<div class="level-indicator" id="levelTitle">Etap 1: Szkic Kotków</div>
 <div>
 <button class="btn-action btn-clear" onclick="clearCanvasCommand()">Wyczyść</button>
 <button class="btn-action" id="nextLevelBtn" onclick="requestNextLevel()">Dalej ➔</button>
@@ -192,9 +189,7 @@ display: block;
 <input type="range" id="brushSize" min="1" max="50" value="4" oninput="updateBrushSize(this.value)">
 </div>
 </div>
-<div class="tools-row" id="toolsContainer">
-<!-- Swatche kolorów generowane dynamicznie -->
-</div>
+<div class="tools-row" id="toolsContainer"></div>
 </div>
 </div>
 
@@ -206,13 +201,12 @@ display: block;
 </div>
 
 <script>
-// Konfiguracja warstw Canvas
 const width = 800; const height = 600;
 
 const bgCtx = document.getElementById('bgCanvas').getContext('2d');
 const fillCtx = document.getElementById('fillCanvas').getContext('2d');
 const outlineCtx = document.getElementById('outlineCanvas').getContext('2d');
-const uiCanvas = document.getElementById('uiCanvas'); // Tylko do nasłuchu zdarzeń
+const uiCanvas = document.getElementById('uiCanvas');
 
 const statusEl = document.getElementById('status');
 const levelTitle = document.getElementById('levelTitle');
@@ -226,39 +220,50 @@ let isDrawing = false;
 let currentStroke = [];
 let lastPos = null;
 
-let iAmReady = false;
-let partnerIsReady = false;
+// Poprawiony mechanizm synchronizacji poziomów
+let myReadyLevel = 0;
+let partnerReadyLevel = 0;
 
 const myClientId = 'user_' + Math.random().toString(16).substr(2, 8);
 let currentTool = { color: '#000000', width: 4 };
 
-// --- PROFESJONALNY RYSUNEK: PEJZAŻ GÓRSKI ---
+// --- ZUPEŁNIE NOWY, PIĘKNY RYSUNEK KOTKÓW ---
 function drawArtPath(ctx) {
-// Słońce / Księżyc
-ctx.moveTo(600, 200);
-ctx.arc(500, 200, 100, 0, Math.PI * 2);
+// Lewy Kotek (Biały)
+ctx.moveTo(240, 520);
+ctx.bezierCurveTo(240, 360, 260, 300, 310, 260); // lewy bok
+ctx.bezierCurveTo(280, 200, 340, 180, 370, 220); // głowa
+ctx.lineTo(330, 130); ctx.lineTo(370, 180); // lewe ucho
+ctx.lineTo(410, 130); ctx.lineTo(400, 190); // prawe ucho
+ctx.bezierCurveTo(440, 220, 420, 280, 380, 300); // głowa prawy bok
+ctx.bezierCurveTo(400, 360, 420, 450, 420, 520); // prawy bok tułowia
 
-// Góra w tle (lewa)
-ctx.moveTo(50, 600);
-ctx.lineTo(250, 250);
-ctx.lineTo(450, 600);
+// Prawy Kotek (Rudy)
+ctx.moveTo(400, 520);
+ctx.bezierCurveTo(400, 420, 410, 350, 450, 290); // lewy bok
+ctx.bezierCurveTo(440, 230, 480, 190, 520, 230); // głowa
+ctx.lineTo(500, 150); ctx.lineTo(530, 195); // lewe ucho
+ctx.lineTo(580, 150); ctx.lineTo(550, 205); // prawe ucho
+ctx.bezierCurveTo(590, 240, 560, 290, 530, 310); // głowa prawy bok
+ctx.bezierCurveTo(570, 380, 580, 450, 580, 520); // prawy bok tułowia
 
-// Góra w tle (prawa)
-ctx.moveTo(350, 600);
-ctx.lineTo(650, 150);
-ctx.lineTo(900, 600);
+// Ogony - Serce
+ctx.moveTo(260, 480);
+ctx.bezierCurveTo(50, 480, 100, 270, 400, 390); // Ogon lewy
 
-// Góra na pierwszym planie (środek)
-ctx.moveTo(-50, 600);
-ctx.lineTo(400, 300);
-ctx.lineTo(850, 600);
+ctx.moveTo(560, 480);
+ctx.bezierCurveTo(770, 480, 720, 270, 400, 390); // Ogon prawy
 
-// Chmury
-ctx.moveTo(200, 150);
-ctx.bezierCurveTo(200, 110, 260, 110, 280, 140);
-ctx.bezierCurveTo(330, 130, 340, 180, 310, 200);
-ctx.bezierCurveTo(330, 230, 260, 240, 240, 210);
-ctx.bezierCurveTo(180, 230, 170, 180, 200, 150);
+// Księżyc
+ctx.moveTo(520, 180);
+ctx.arc(410, 180, 110, 0, Math.PI * 2);
+
+// Chmurka
+ctx.moveTo(100, 250);
+ctx.bezierCurveTo(100, 220, 150, 220, 160, 240);
+ctx.bezierCurveTo(190, 220, 220, 250, 200, 270);
+ctx.bezierCurveTo(220, 300, 150, 300, 140, 280);
+ctx.bezierCurveTo(90, 290, 90, 260, 100, 250);
 }
 
 function updateBackgroundGuide(level) {
@@ -266,40 +271,72 @@ bgCtx.clearRect(0, 0, width, height);
 bgCtx.lineJoin = "round"; bgCtx.lineCap = "round";
 
 if (level === 1) {
-// Szkic - przerywane linie
+// Etap 1: Szkic (Tylko jasne, przerywane linie do obrysowania)
 bgCtx.setLineDash([12, 18]);
-bgCtx.lineWidth = 4;
+bgCtx.lineWidth = 5;
 bgCtx.strokeStyle = "#adb5bd";
 bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
 bgCtx.setLineDash([]);
 }
 else if (level === 2) {
-// Kolory - lekkie wypełnienia podpowiadające
-bgCtx.lineWidth = 2;
-bgCtx.strokeStyle = "#e9ecef";
-bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
-
-// Słońce
-bgCtx.fillStyle = "rgba(255, 200, 0, 0.2)";
-bgCtx.beginPath(); bgCtx.arc(500, 200, 100, 0, Math.PI * 2); bgCtx.fill();
-
-// Niebo
-bgCtx.fillStyle = "rgba(135, 206, 235, 0.2)";
+// Etap 2: Kolory (Podkład)
+bgCtx.fillStyle = "#1e1b4b"; // Nocne niebo
 bgCtx.fillRect(0,0, width, height);
+
+// Rozmyte plamy jako profesjonalne podpowiedzi
+bgCtx.filter = "blur(18px)";
+
+// Księżyc
+bgCtx.fillStyle = "#fef08a";
+bgCtx.beginPath(); bgCtx.arc(410, 180, 100, 0, Math.PI * 2); bgCtx.fill();
+
+// Lewy Kot (Biały)
+bgCtx.fillStyle = "#f8fafc";
+bgCtx.beginPath(); bgCtx.ellipse(330, 400, 60, 110, 0, 0, Math.PI*2); bgCtx.fill();
+bgCtx.beginPath(); bgCtx.arc(340, 240, 40, 0, Math.PI*2); bgCtx.fill();
+
+// Prawy Kot (Rudy)
+bgCtx.fillStyle = "#ea580c";
+bgCtx.beginPath(); bgCtx.ellipse(490, 400, 60, 110, 0, 0, Math.PI*2); bgCtx.fill();
+bgCtx.beginPath(); bgCtx.arc(490, 240, 40, 0, Math.PI*2); bgCtx.fill();
+
+bgCtx.filter = "none";
+
+// Lekki obrys by nie zgubić kształtów
+bgCtx.lineWidth = 2;
+bgCtx.strokeStyle = "rgba(255,255,255,0.2)";
+bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
 }
 else if (level === 3) {
-// Cienie i Detale
+// Etap 3: Cienie (Detale)
+bgCtx.fillStyle = "#1e1b4b";
+bgCtx.fillRect(0,0, width, height);
+
 bgCtx.lineWidth = 1;
-bgCtx.strokeStyle = "#e9ecef";
+bgCtx.strokeStyle = "rgba(255,255,255,0.15)";
 bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
 
-// Cień na górach
-bgCtx.fillStyle = "rgba(0, 0, 0, 0.08)";
-bgCtx.beginPath(); ctx.moveTo(400, 300); ctx.lineTo(625, 450); ctx.lineTo(400, 600); ctx.fill();
+bgCtx.filter = "blur(12px)";
+
+// Głębia i cień u podstawy kotków
+bgCtx.fillStyle = "rgba(0,0,0,0.7)";
+bgCtx.beginPath(); bgCtx.ellipse(320, 500, 70, 30, 0, 0, Math.PI*2); bgCtx.fill();
+bgCtx.beginPath(); bgCtx.ellipse(500, 500, 70, 30, 0, 0, Math.PI*2); bgCtx.fill();
+
+// Cień księżyca
+bgCtx.fillStyle = "rgba(0,0,0,0.3)";
+bgCtx.beginPath(); bgCtx.arc(380, 190, 90, 0, Math.PI*2); bgCtx.fill();
+
+// Blask na krawędziach kotków od księżyca
+bgCtx.fillStyle = "rgba(255,255,255,0.6)";
+bgCtx.beginPath(); bgCtx.ellipse(380, 240, 15, 30, Math.PI/4, 0, Math.PI*2); bgCtx.fill();
+bgCtx.beginPath(); bgCtx.ellipse(450, 240, 15, 30, -Math.PI/4, 0, Math.PI*2); bgCtx.fill();
+
+bgCtx.filter = "none";
 }
 }
 
-// --- INTERFEJS I NARZĘDZIA ---
+// --- INTERFEJS ---
 function updateBrushSize(val) {
 currentTool.width = parseInt(val);
 brushSizeLabel.innerText = `Grubość: ${val}px`;
@@ -313,7 +350,7 @@ const btn = document.createElement('div');
 btn.className = 'color-swatch';
 btn.style.background = isEraser ? 'repeating-linear-gradient(45deg, #fff, #fff 5px, #ccc 5px, #ccc 10px)' : color;
 btn.onclick = () => {
-currentTool.color = isEraser ? '#ffffff' : color; // Biały traktujemy jako gumkę do kolorów
+currentTool.color = isEraser ? '#ffffff' : color;
 brushSizeSlider.value = defaultWidth;
 updateBrushSize(defaultWidth);
 
@@ -321,7 +358,6 @@ document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('acti
 btn.classList.add('active-tool');
 
 if (isEraser) {
-// Gumka w canvas to specyficzny tryb
 fillCtx.globalCompositeOperation = "destination-out";
 } else {
 fillCtx.globalCompositeOperation = "source-over";
@@ -334,23 +370,24 @@ return btn;
 
 let defaultSwatch;
 if (level === 1) {
-levelTitle.innerText = "Etap 1: Zarysuj kontury";
-defaultSwatch = createSwatch('#1c1c1e', 4);
-createSwatch('#3a3a3c', 4);
-createSwatch('#8e8e93', 6);
+levelTitle.innerText = "Etap 1: Obrysuj Kotki (Kontury)";
+defaultSwatch = createSwatch('#1c1c1e', 5); // Czarny
+createSwatch('#48484a', 5); // Ciemny szary
+createSwatch('#d1d1d6', 5); // Jasny szary (na księżyc)
 } else if (level === 2) {
-levelTitle.innerText = "Etap 2: Wypełnij kolorem";
-defaultSwatch = createSwatch('#ffcc00', 30); // Słońce
-createSwatch('#ff9500', 30); // Pomarańczowy
-createSwatch('#5ac8fa', 40); // Niebo
-createSwatch('#34c759', 30); // Zieleń
-createSwatch('#8b4513', 30); // Brąz
+levelTitle.innerText = "Etap 2: Wypełnij Kotki Kolorami";
+defaultSwatch = createSwatch('#f8fafc', 35); // Kot 1 (Biały)
+createSwatch('#ea580c', 35); // Kot 2 (Rudy)
+createSwatch('#fef08a', 45); // Księżyc (Żółty)
+createSwatch('#1e1b4b', 50); // Niebo (Granatowe)
+createSwatch('#fb7185', 20); // Uszka (Różowy)
 createSwatch('#ffffff', 40, true); // Gumka
 } else if (level === 3) {
-levelTitle.innerText = "Etap 3: Dodaj cienie i blask";
-defaultSwatch = createSwatch('rgba(0,0,0,0.2)', 40); // Cień
-createSwatch('rgba(255,255,255,0.4)', 40); // Światło
-createSwatch('#ff2d55', 10); // Detale
+levelTitle.innerText = "Etap 3: Dodaj Głębię i Cienie";
+defaultSwatch = createSwatch('rgba(0,0,0,0.15)', 40); // Cień delikatny
+createSwatch('rgba(0,0,0,0.35)', 30); // Cień mocny
+createSwatch('rgba(255,255,255,0.4)', 30); // Światło
+createSwatch('#fb7185', 10); // Róż na detale
 }
 if(defaultSwatch) defaultSwatch.click();
 }
@@ -359,7 +396,6 @@ function changeLevel(lvl) {
 currentLevel = lvl;
 if(currentLevel > 3) currentLevel = 1;
 
-// Przy zmianie etapu zawsze resetujemy tryb mieszania
 fillCtx.globalCompositeOperation = "source-over";
 outlineCtx.globalCompositeOperation = "source-over";
 
@@ -369,9 +405,9 @@ updateToolbar(currentLevel);
 
 changeLevel(1);
 
-// --- KOMUNIKACJA SIECIOWA ---
+// --- BEZBŁĘDNA KOMUNIKACJA SIECIOWA ---
 const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
-const topic = "artworkout/pro_room_ipad_7788";
+const topic = "artworkout/cats_pro_ipad_8899"; // Zmieniony kanał dla czystego startu
 const client = mqtt.connect(brokerUrl);
 
 client.on('connect', () => {
@@ -396,30 +432,38 @@ outlineCtx.clearRect(0, 0, width, height);
 else if (data.type === 'full_stroke') {
 drawReceivedStroke(data.points, data.color, data.width, data.layer, data.isEraser);
 }
-else if (data.type === 'ready_next_level') {
-partnerIsReady = true;
+// Odbiór informacji o gotowości
+else if (data.type === 'ready_for_level') {
+partnerReadyLevel = data.level;
 checkLevelAdvance();
 }
 });
 
 function requestNextLevel() {
-if (iAmReady) return;
-iAmReady = true;
+const targetLevel = currentLevel === 3 ? 1 : currentLevel + 1;
+
+if (myReadyLevel === targetLevel) return;
+
+myReadyLevel = targetLevel;
 nextLevelBtn.innerText = "Czekam...";
 nextLevelBtn.classList.add('btn-waiting');
 
 if (client.connected) {
-client.publish(topic, JSON.stringify({ id: myClientId, type: 'ready_next_level' }));
+// Teraz wysyłamy informację, NA KTÓRY poziom czekamy
+client.publish(topic, JSON.stringify({ id: myClientId, type: 'ready_for_level', level: targetLevel }));
 }
 checkLevelAdvance();
 }
 
 function checkLevelAdvance() {
-if (iAmReady && partnerIsReady) {
-const next = currentLevel === 3 ? 1 : currentLevel + 1;
-changeLevel(next);
+const targetLevel = currentLevel === 3 ? 1 : currentLevel + 1;
 
-iAmReady = false; partnerIsReady = false;
+// Poziom zmienia się TYLKO gdy obie strony zgadzają się co do docelowego poziomu
+if (myReadyLevel === targetLevel && partnerReadyLevel === targetLevel) {
+changeLevel(targetLevel);
+
+myReadyLevel = 0;
+partnerReadyLevel = 0;
 nextLevelBtn.innerText = "Dalej ➔";
 nextLevelBtn.classList.remove('btn-waiting');
 }
@@ -432,8 +476,6 @@ if (client.connected) client.publish(topic, JSON.stringify({ id: myClientId, typ
 }
 
 // --- MECHANIKA RYSOWANIA NA WARSTWACH ---
-
-// Zwraca odpowiedni kontekst (Canvas) w zależności od obecnego etapu
 function getActiveContext() {
 return currentLevel === 1 ? outlineCtx : fillCtx;
 }
@@ -512,7 +554,6 @@ points: currentStroke
 currentStroke = [];
 }
 
-// Zdarzenia podpięte pod uiCanvas (górną niewidzialną warstwę)
 uiCanvas.addEventListener('pointerdown', startDrawing);
 uiCanvas.addEventListener('pointermove', draw);
 uiCanvas.addEventListener('pointerup', stopDrawing);
