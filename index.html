@@ -54,19 +54,21 @@
             border: 2px solid #ccc; 
             border-radius: 8px; 
             font-size: 16px;
-            width: 60%;
+            width: 80%;
             margin-top: 10px;
             text-align: center;
         }
         #myId { 
             font-weight: bold; 
             color: #007bff; 
-            font-size: 1.8em; 
+            font-size: 1.1em; 
             background: #e7f1ff;
-            padding: 3px 12px;
+            padding: 5px 10px;
             border-radius: 6px;
             display: inline-block;
             margin: 5px 0;
+            word-break: break-all;
+            user-select: all;
         }
         #status { margin-top: 10px; font-weight: bold; color: #555; }
     </style>
@@ -74,8 +76,8 @@
 <body>
 
     <div class="controls">
-        <p style="margin: 5px 0;">Twój kod: <span id="myId">...</span></p>
-        <input type="number" id="friendId" placeholder="Wpisz kod drugiego gracza">
+        <p style="margin: 5px 0;">Twój kod (kliknij, aby zaznaczyć):<br><span id="myId">Ładowanie...</span></p>
+        <input type="text" id="friendId" placeholder="Wklej kod drugiego gracza">
         <br>
         <button onclick="connectToFriend()">Połącz</button>
         <div id="status">Inicjalizacja sieci...</div>
@@ -93,7 +95,7 @@
         let conn = null;
         let peer = null;
 
-        // --- DOPRACOWANY OBRAZEK KOTKÓW W TLE ---
+        // --- OBRAZEK KOTKÓW W TLE ---
         function drawBackground() {
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -102,69 +104,44 @@
             ctx.lineCap = "round";
             ctx.lineJoin = "round";
 
-            // LEWY KOTEK (Różowy kontur)
+            // LEWY KOTEK (Różowy)
             ctx.strokeStyle = "rgba(255, 182, 193, 0.5)";
-            
-            // Głowa lewa
-            ctx.beginPath();
-            ctx.arc(230, 200, 45, 0, Math.PI * 2);
-            ctx.stroke();
-            // Uszy lewe
-            ctx.beginPath();
-            ctx.moveTo(195, 175); ctx.lineTo(190, 140); ctx.lineTo(215, 160);
-            ctx.moveTo(245, 160); ctx.lineTo(270, 140); ctx.lineTo(265, 175);
-            ctx.stroke();
-            // Ciało lewe
-            ctx.beginPath();
-            ctx.moveTo(200, 240);
-            ctx.bezierCurveTo(160, 270, 160, 380, 230, 390);
-            ctx.lineTo(270, 390);
-            ctx.bezierCurveTo(290, 360, 270, 260, 255, 240);
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(230, 200, 45, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(195, 175); ctx.lineTo(190, 140); ctx.lineTo(215, 160); ctx.moveTo(245, 160); ctx.lineTo(270, 140); ctx.lineTo(265, 175); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(200, 240); ctx.bezierCurveTo(160, 270, 160, 380, 230, 390); ctx.lineTo(270, 390); ctx.bezierCurveTo(290, 360, 270, 260, 255, 240); ctx.stroke();
 
-            // PRAWY KOTEK (Niebieski kontur - przytulony)
+            // PRAWY KOTEK (Niebieski)
             ctx.strokeStyle = "rgba(173, 216, 230, 0.6)";
-            
-            // Głowa prawa
-            ctx.beginPath();
-            ctx.arc(315, 215, 45, 0, Math.PI * 2);
-            ctx.stroke();
-            // Uszy prawe
-            ctx.beginPath();
-            ctx.moveTo(280, 190); ctx.lineTo(275, 155); ctx.lineTo(300, 175);
-            ctx.moveTo(330, 175); ctx.lineTo(355, 155); ctx.lineTo(350, 190);
-            ctx.stroke();
-            // Ciało prawe
-            ctx.beginPath();
-            ctx.moveTo(290, 253);
-            ctx.bezierCurveTo(280, 280, 300, 360, 320, 390);
-            ctx.lineTo(360, 390);
-            ctx.bezierCurveTo(430, 380, 430, 270, 350, 250);
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(315, 215, 45, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(280, 190); ctx.lineTo(275, 155); ctx.lineTo(300, 175); ctx.moveTo(330, 175); ctx.lineTo(355, 155); ctx.lineTo(350, 190); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(290, 253); ctx.bezierCurveTo(280, 280, 300, 360, 320, 390); ctx.lineTo(360, 390); ctx.bezierCurveTo(430, 380, 430, 270, 350, 250); ctx.stroke();
 
             // WSPÓLNY OGON W KSZTAŁT SERCA
             ctx.strokeStyle = "rgba(255, 140, 140, 0.4)";
-            ctx.beginPath();
-            ctx.moveTo(250, 390); // środek między kotkami
-            ctx.bezierCurveTo(250, 460, 120, 470, 120, 360);
-            ctx.bezierCurveTo(120, 280, 250, 240, 285, 300); // lewa połówka serca
-            ctx.bezierCurveTo(320, 240, 450, 280, 450, 360);
-            ctx.bezierCurveTo(450, 470, 320, 460, 320, 390); // prawa połówka serca
+            ctx.beginPath(); ctx.moveTo(250, 390);
+            ctx.bezierCurveTo(250, 460, 120, 470, 120, 360); ctx.bezierCurveTo(120, 280, 250, 240, 285, 300);
+            ctx.bezierCurveTo(320, 240, 450, 280, 450, 360); ctx.bezierCurveTo(450, 470, 320, 460, 320, 390);
             ctx.stroke();
         }
-        
         drawBackground();
 
-        // Ustawienia rysowania gracza
-        ctx.strokeStyle = "#007bff"; // Kolor domyślny linii rysowania
+        ctx.strokeStyle = "#007bff";
         ctx.lineWidth = 5;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
-        // --- POPRAWIONE I STABILNE POŁĄCZENIE 5-CYFROWE ---
+        // --- ROZWIĄZANIE PROBLEMÓW Z POŁĄCZENIEM (DODANIE SERWERÓW STUN GOOGLE) ---
         function initPeer() {
-            const randomCode = Math.floor(10000 + Math.random() * 90000).toString();
-            peer = new Peer(randomCode);
+            // Konfiguracja serwerów IceServers pozwala ominąć blokady routerów (Firewall/NAT)
+            peer = new Peer({
+                config: {
+                    'iceServers': [
+                        { url: 'stun:stun.l.google.com:19302' },
+                        { url: 'stun:stun1.l.google.com:19302' },
+                        { url: 'stun:stun2.l.google.com:19302' }
+                    ]
+                }
+            });
 
             peer.on('open', (id) => {
                 document.getElementById('myId').innerText = id;
@@ -172,12 +149,8 @@
             });
 
             peer.on('error', (err) => {
-                if (err.type === 'unavailable-id') {
-                    // Jeśli kod zajęty, spróbuj ponownie z innym
-                    initPeer();
-                } else {
-                    document.getElementById('status').innerText = "Błąd: " + err.type;
-                }
+                console.error(err);
+                document.getElementById('status').innerText = "Błąd sieci: " + err.type;
             });
 
             peer.on('connection', (connection) => {
@@ -189,7 +162,7 @@
 
         function connectToFriend() {
             const friendId = document.getElementById('friendId').value.trim();
-            if (friendId.length !== 5) return alert('Kod musi mieć 5 cyfr!');
+            if (!friendId) return alert('Wklej najpierw kod drugiego gracza!');
             
             document.getElementById('status').innerText = "Łączenie...";
             const connection = peer.connect(friendId);
@@ -211,7 +184,7 @@
                     ctx.beginPath();
                     ctx.moveTo(data.x, data.y);
                 } else if (data.type === 'draw') {
-                    ctx.strokeStyle = "#dc3545"; // Kolor linii drugiego gracza (czerwony)
+                    ctx.strokeStyle = "#dc3545"; // Rywal rysuje na czerwono
                     ctx.lineTo(data.x, data.y);
                     ctx.stroke();
                     ctx.beginPath();
@@ -227,7 +200,6 @@
             const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            
             return {
                 x: (clientX - rect.left) * (canvas.width / rect.width),
                 y: (clientY - rect.top) * (canvas.height / rect.height)
@@ -245,7 +217,7 @@
         function draw(e) {
             if (!isDrawing) return;
             const pos = getPos(e);
-            ctx.strokeStyle = "#007bff"; // Twój kolor linii (niebieski)
+            ctx.strokeStyle = "#007bff"; // Ty rysujesz na niebiesko
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
             ctx.beginPath();
@@ -264,13 +236,11 @@
             if (conn && conn.open) conn.send({ type: 'clear' });
         }
 
-        // Myszką (PC)
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
 
-        // Dotyk (Ekran dotykowy)
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
         canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
         canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
