@@ -2,261 +2,386 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<!-- Blokada przybliżania - kluczowe dla wygody na iPadzie -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ArtWorkout Online - Tryb Współpracy</title>
+<title>ArtWorkout Pro - Tryb Współpracy</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <style>
+/* Nowoczesny interfejs w stylu Apple / Glassmorphism */
+:root {
+--bg-color: #f5f7fa;
+--glass-bg: rgba(255, 255, 255, 0.75);
+--glass-border: rgba(255, 255, 255, 0.4);
+--shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+--accent: #007aff;
+}
+
 body {
-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 text-align: center;
-background: #e9ecef;
+background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+min-height: 100vh;
 margin: 0;
-padding: 10px;
+padding: 20px;
 display: flex;
 flex-direction: column;
 align-items: center;
-/* Zabezpieczenie przed gestami nawigacji systemowej */
 overscroll-behavior-y: contain;
 }
-.header-panel {
-margin-bottom: 15px;
-padding: 15px;
-background: white;
-border-radius: 12px;
-box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-max-width: 600px;
+
+.glass-panel {
+background: var(--glass-bg);
+backdrop-filter: blur(16px);
+-webkit-backdrop-filter: blur(16px);
+border: 1px solid var(--glass-border);
+border-radius: 24px;
+box-shadow: var(--shadow);
+padding: 20px;
+max-width: 700px;
 width: 100%;
 box-sizing: border-box;
+margin-bottom: 20px;
 }
+
+.header-top {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 15px;
+padding-bottom: 15px;
+border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
 .level-indicator {
-font-size: 18px;
-font-weight: bold;
-color: #495057;
-margin-bottom: 10px;
+font-size: 20px;
+font-weight: 600;
+color: #1d1d1f;
 }
+
+#status {
+font-weight: 500;
+font-size: 14px;
+padding: 6px 12px;
+border-radius: 20px;
+background: rgba(255, 152, 0, 0.2);
+color: #d97706;
+}
+#status.status-connected { background: rgba(40, 167, 69, 0.2); color: #28a745; }
+#status.status-error { background: rgba(220, 53, 69, 0.2); color: #dc3545; }
+
 .toolbar {
 display: flex;
+flex-direction: column;
+gap: 15px;
+}
+
+.tools-row {
+display: flex;
 justify-content: center;
-gap: 10px;
-margin-top: 15px;
+align-items: center;
+gap: 12px;
 flex-wrap: wrap;
 }
+
+/* Suwak grubości pędzla */
+.slider-container {
+display: flex;
+align-items: center;
+gap: 10px;
+background: rgba(255,255,255,0.5);
+padding: 8px 16px;
+border-radius: 16px;
+font-size: 14px;
+font-weight: 500;
+color: #333;
+}
+
+input[type=range] {
+-webkit-appearance: none;
+width: 120px;
+background: transparent;
+}
+input[type=range]::-webkit-slider-thumb {
+-webkit-appearance: none;
+height: 20px; width: 20px;
+border-radius: 50%;
+background: var(--accent);
+cursor: pointer;
+margin-top: -8px;
+box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+input[type=range]::-webkit-slider-runnable-track {
+width: 100%; height: 4px;
+cursor: pointer;
+background: #d1d1d6;
+border-radius: 2px;
+}
+
+/* Swatche kolorów */
+.color-swatch {
+width: 36px; height: 36px;
+border-radius: 50%;
+border: 3px solid white;
+box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+cursor: pointer;
+transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.color-swatch:hover { transform: scale(1.1); }
+.color-swatch.active-tool {
+transform: scale(1.2);
+border-color: var(--accent);
+}
+
+button.btn-action {
+background: var(--accent);
+color: white;
+border: none;
+padding: 10px 20px;
+border-radius: 12px;
+cursor: pointer;
+font-weight: 600;
+font-size: 15px;
+transition: all 0.2s;
+box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+}
+button.btn-action:hover { filter: brightness(1.1); transform: translateY(-1px); }
+button.btn-clear { background: #ff3b30; box-shadow: 0 4px 12px rgba(255, 59, 48, 0.3); }
+button.btn-waiting { background: #ffcc00; color: #1d1d1f; box-shadow: 0 4px 12px rgba(255, 204, 0, 0.3); }
+
+/* Obszar roboczy z 3 warstwami */
 .canvas-wrapper {
 position: relative;
 width: 100%;
-max-width: 600px;
-/* Utrzymanie proporcji 600x500 */
-aspect-ratio: 6/5;
-box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-border-radius: 16px;
+max-width: 800px;
+aspect-ratio: 4/3;
+border-radius: 24px;
 overflow: hidden;
-border: 4px solid #333;
+box-shadow: 0 12px 40px rgba(0,0,0,0.2);
 background: #ffffff;
 }
 canvas {
 position: absolute;
-top: 0;
-left: 0;
-width: 100%;
-height: 100%;
-/* Wymagane dla płynnego działania Apple Pencil / dotyku */
+top: 0; left: 0;
+width: 100%; height: 100%;
 touch-action: none;
 display: block;
 }
-#bgCanvas { z-index: 1; }
-#drawCanvas { z-index: 2; cursor: crosshair; }
 
-button {
-background: #6c757d;
-color: white;
-border: none;
-padding: 10px 16px;
-border-radius: 8px;
-cursor: pointer;
-font-weight: bold;
-font-size: 14px;
-transition: all 0.2s;
-}
-button:hover { filter: brightness(1.1); transform: translateY(-1px); }
-button.active-tool { border: 2px solid #000; box-shadow: 0 0 5px rgba(0,0,0,0.3); }
+#bgCanvas { z-index: 1; } /* Przewodnik (na samym dole) */
+#fillCanvas { z-index: 2; } /* Kolory i cienie (środek) */
+#outlineCanvas { z-index: 3; } /* Kontury (na samej górze - nigdy nie zamalowane) */
+#uiCanvas { z-index: 4; cursor: crosshair; } /* Niewidzialna warstwa do przechwytywania dotyku */
 
-.btn-next { background: #007bff; font-size: 16px; padding: 12px 24px; }
-.btn-clear { background: #dc3545; }
-
-#status { font-weight: bold; color: #ff9800; margin-bottom: 5px; font-size: 14px; }
-.status-connected { color: #28a745 !important; }
-.status-error { color: #dc3545 !important; }
-
-/* Kolory narzędzi */
-.tool-black { background: #212529; }
-.tool-pink { background: #ffb6c1; color: black; }
-.tool-blue { background: #add8e6; color: black; }
-.tool-red { background: #ff4d4d; }
-.tool-white { background: #f8f9fa; color: black; border: 1px solid #ccc; }
-.tool-shadow { background: #6c757d; }
-.tool-light { background: #fff3cd; color: black; }
 </style>
 </head>
 <body>
 
-<div class="header-panel">
-<div id="status">Łączenie z serwerem...</div>
-<div class="level-indicator" id="levelTitle">Poziom 1: Obrys szkicu</div>
-
+<div class="glass-panel">
+<div class="header-top">
+<div id="status">Łączenie...</div>
+<div class="level-indicator" id="levelTitle">Etap 1: Szkic</div>
 <div>
-<button class="btn-clear" onclick="clearCanvasCommand()">Wyczyść rysunek</button>
-<button class="btn-next" id="nextLevelBtn" onclick="requestNextLevel()">Następny Etap ➔</button>
+<button class="btn-action btn-clear" onclick="clearCanvasCommand()">Wyczyść</button>
+<button class="btn-action" id="nextLevelBtn" onclick="requestNextLevel()">Dalej ➔</button>
+</div>
 </div>
 
-<!-- Dynamiczny przybornik -->
-<div class="toolbar" id="toolsContainer"></div>
+<div class="toolbar">
+<div class="tools-row">
+<div class="slider-container">
+<span id="brushSizeLabel">Grubość: 4px</span>
+<input type="range" id="brushSize" min="1" max="50" value="4" oninput="updateBrushSize(this.value)">
+</div>
+</div>
+<div class="tools-row" id="toolsContainer">
+<!-- Swatche kolorów generowane dynamicznie -->
+</div>
+</div>
 </div>
 
 <div class="canvas-wrapper">
-<canvas id="bgCanvas" width="600" height="500"></canvas>
-<canvas id="drawCanvas" width="600" height="500"></canvas>
+<canvas id="bgCanvas" width="800" height="600"></canvas>
+<canvas id="fillCanvas" width="800" height="600"></canvas>
+<canvas id="outlineCanvas" width="800" height="600"></canvas>
+<canvas id="uiCanvas" width="800" height="600"></canvas>
 </div>
 
 <script>
-const bgCanvas = document.getElementById('bgCanvas');
-const bgCtx = bgCanvas.getContext('2d');
-const drawCanvas = document.getElementById('drawCanvas');
-const drawCtx = drawCanvas.getContext('2d');
+// Konfiguracja warstw Canvas
+const width = 800; const height = 600;
+
+const bgCtx = document.getElementById('bgCanvas').getContext('2d');
+const fillCtx = document.getElementById('fillCanvas').getContext('2d');
+const outlineCtx = document.getElementById('outlineCanvas').getContext('2d');
+const uiCanvas = document.getElementById('uiCanvas'); // Tylko do nasłuchu zdarzeń
+
 const statusEl = document.getElementById('status');
 const levelTitle = document.getElementById('levelTitle');
 const toolsContainer = document.getElementById('toolsContainer');
 const nextLevelBtn = document.getElementById('nextLevelBtn');
+const brushSizeSlider = document.getElementById('brushSize');
+const brushSizeLabel = document.getElementById('brushSizeLabel');
 
 let currentLevel = 1;
 let isDrawing = false;
-
-// Zmienne do trzymania całej rysowanej linii
 let currentStroke = [];
 let lastPos = null;
 
-// Zmienne do autoryzacji przejścia na nowy poziom
 let iAmReady = false;
 let partnerIsReady = false;
 
 const myClientId = 'user_' + Math.random().toString(16).substr(2, 8);
 let currentTool = { color: '#000000', width: 4 };
 
-// --- RYSOWANIE TŁA (PODPOWIEDZI) ---
-function drawCatPaths(ctx) {
-ctx.beginPath(); ctx.arc(230, 200, 45, 0, Math.PI * 2);
-ctx.moveTo(195, 175); ctx.lineTo(190, 140); ctx.lineTo(215, 160);
-ctx.moveTo(245, 160); ctx.lineTo(270, 140); ctx.lineTo(265, 175);
-ctx.moveTo(200, 240); ctx.bezierCurveTo(160, 270, 160, 380, 230, 390); ctx.lineTo(270, 390); ctx.bezierCurveTo(290, 360, 270, 260, 255, 240);
+// --- PROFESJONALNY RYSUNEK: PEJZAŻ GÓRSKI ---
+function drawArtPath(ctx) {
+// Słońce / Księżyc
+ctx.moveTo(600, 200);
+ctx.arc(500, 200, 100, 0, Math.PI * 2);
 
-ctx.moveTo(360, 215); ctx.arc(315, 215, 45, 0, Math.PI * 2);
-ctx.moveTo(280, 190); ctx.lineTo(275, 155); ctx.lineTo(300, 175);
-ctx.moveTo(330, 175); ctx.lineTo(355, 155); ctx.lineTo(350, 190);
-ctx.moveTo(290, 253); ctx.bezierCurveTo(280, 280, 300, 360, 320, 390); ctx.lineTo(360, 390); ctx.bezierCurveTo(430, 380, 430, 270, 350, 250);
+// Góra w tle (lewa)
+ctx.moveTo(50, 600);
+ctx.lineTo(250, 250);
+ctx.lineTo(450, 600);
 
-ctx.moveTo(250, 390);
-ctx.bezierCurveTo(250, 460, 120, 470, 120, 360); ctx.bezierCurveTo(120, 280, 250, 240, 285, 300);
-ctx.bezierCurveTo(320, 240, 450, 280, 450, 360); ctx.bezierCurveTo(450, 470, 320, 460, 320, 390);
+// Góra w tle (prawa)
+ctx.moveTo(350, 600);
+ctx.lineTo(650, 150);
+ctx.lineTo(900, 600);
+
+// Góra na pierwszym planie (środek)
+ctx.moveTo(-50, 600);
+ctx.lineTo(400, 300);
+ctx.lineTo(850, 600);
+
+// Chmury
+ctx.moveTo(200, 150);
+ctx.bezierCurveTo(200, 110, 260, 110, 280, 140);
+ctx.bezierCurveTo(330, 130, 340, 180, 310, 200);
+ctx.bezierCurveTo(330, 230, 260, 240, 240, 210);
+ctx.bezierCurveTo(180, 230, 170, 180, 200, 150);
 }
 
 function updateBackgroundGuide(level) {
-bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
-bgCtx.lineJoin = "round";
-bgCtx.lineCap = "round";
+bgCtx.clearRect(0, 0, width, height);
+bgCtx.lineJoin = "round"; bgCtx.lineCap = "round";
 
 if (level === 1) {
-bgCtx.setLineDash([10, 15]);
-bgCtx.lineWidth = 6;
-bgCtx.strokeStyle = "#ced4da";
-drawCatPaths(bgCtx);
-bgCtx.stroke();
+// Szkic - przerywane linie
+bgCtx.setLineDash([12, 18]);
+bgCtx.lineWidth = 4;
+bgCtx.strokeStyle = "#adb5bd";
+bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
 bgCtx.setLineDash([]);
 }
 else if (level === 2) {
-bgCtx.lineWidth = 4;
-bgCtx.strokeStyle = "#e9ecef";
-drawCatPaths(bgCtx);
-bgCtx.stroke();
-
-bgCtx.fillStyle = "rgba(255, 182, 193, 0.4)";
-bgCtx.beginPath(); bgCtx.arc(230, 270, 60, 0, Math.PI*2); bgCtx.fill();
-bgCtx.fillStyle = "rgba(173, 216, 230, 0.4)";
-bgCtx.beginPath(); bgCtx.arc(315, 280, 60, 0, Math.PI*2); bgCtx.fill();
-}
-else if (level === 3) {
+// Kolory - lekkie wypełnienia podpowiadające
 bgCtx.lineWidth = 2;
 bgCtx.strokeStyle = "#e9ecef";
-drawCatPaths(bgCtx);
-bgCtx.stroke();
+bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
 
-bgCtx.fillStyle = "rgba(0, 0, 0, 0.1)";
-bgCtx.beginPath(); bgCtx.arc(200, 220, 30, 0, Math.PI*2); bgCtx.fill();
-bgCtx.beginPath(); bgCtx.arc(340, 230, 30, 0, Math.PI*2); bgCtx.fill();
+// Słońce
+bgCtx.fillStyle = "rgba(255, 200, 0, 0.2)";
+bgCtx.beginPath(); bgCtx.arc(500, 200, 100, 0, Math.PI * 2); bgCtx.fill();
 
-bgCtx.fillStyle = "rgba(255, 255, 150, 0.2)";
-bgCtx.beginPath(); bgCtx.arc(245, 180, 20, 0, Math.PI*2); bgCtx.fill();
-bgCtx.beginPath(); bgCtx.arc(300, 190, 20, 0, Math.PI*2); bgCtx.fill();
+// Niebo
+bgCtx.fillStyle = "rgba(135, 206, 235, 0.2)";
+bgCtx.fillRect(0,0, width, height);
 }
+else if (level === 3) {
+// Cienie i Detale
+bgCtx.lineWidth = 1;
+bgCtx.strokeStyle = "#e9ecef";
+bgCtx.beginPath(); drawArtPath(bgCtx); bgCtx.stroke();
+
+// Cień na górach
+bgCtx.fillStyle = "rgba(0, 0, 0, 0.08)";
+bgCtx.beginPath(); ctx.moveTo(400, 300); ctx.lineTo(625, 450); ctx.lineTo(400, 600); ctx.fill();
+}
+}
+
+// --- INTERFEJS I NARZĘDZIA ---
+function updateBrushSize(val) {
+currentTool.width = parseInt(val);
+brushSizeLabel.innerText = `Grubość: ${val}px`;
 }
 
 function updateToolbar(level) {
 toolsContainer.innerHTML = '';
-const createBtn = (name, color, width, cssClass) => {
-const btn = document.createElement('button');
-btn.innerText = name; btn.className = cssClass;
-btn.onclick = () => setTool(color, width, btn);
-toolsContainer.appendChild(btn); return btn;
+
+const createSwatch = (color, defaultWidth, isEraser = false) => {
+const btn = document.createElement('div');
+btn.className = 'color-swatch';
+btn.style.background = isEraser ? 'repeating-linear-gradient(45deg, #fff, #fff 5px, #ccc 5px, #ccc 10px)' : color;
+btn.onclick = () => {
+currentTool.color = isEraser ? '#ffffff' : color; // Biały traktujemy jako gumkę do kolorów
+brushSizeSlider.value = defaultWidth;
+updateBrushSize(defaultWidth);
+
+document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('active-tool'));
+btn.classList.add('active-tool');
+
+if (isEraser) {
+// Gumka w canvas to specyficzny tryb
+fillCtx.globalCompositeOperation = "destination-out";
+} else {
+fillCtx.globalCompositeOperation = "source-over";
+outlineCtx.globalCompositeOperation = "source-over";
+}
+};
+toolsContainer.appendChild(btn);
+return btn;
 };
 
-let defaultBtn;
+let defaultSwatch;
 if (level === 1) {
-levelTitle.innerText = "Poziom 1: Obrys (Poprowadź linie po śladzie)";
-defaultBtn = createBtn('Cienkopis', '#000000', 4, 'tool-black');
+levelTitle.innerText = "Etap 1: Zarysuj kontury";
+defaultSwatch = createSwatch('#1c1c1e', 4);
+createSwatch('#3a3a3c', 4);
+createSwatch('#8e8e93', 6);
 } else if (level === 2) {
-levelTitle.innerText = "Poziom 2: Kolorowanie (Wypełnij kształty)";
-createBtn('Czarny obrys', '#000000', 4, 'tool-black');
-defaultBtn = createBtn('Różowy pędzel', '#ffb6c1', 20, 'tool-pink');
-createBtn('Niebieski pędzel', '#add8e6', 20, 'tool-blue');
-createBtn('Czerwony pędzel', '#ff4d4d', 20, 'tool-red');
-createBtn('Biała gumka', '#ffffff', 20, 'tool-white');
+levelTitle.innerText = "Etap 2: Wypełnij kolorem";
+defaultSwatch = createSwatch('#ffcc00', 30); // Słońce
+createSwatch('#ff9500', 30); // Pomarańczowy
+createSwatch('#5ac8fa', 40); // Niebo
+createSwatch('#34c759', 30); // Zieleń
+createSwatch('#8b4513', 30); // Brąz
+createSwatch('#ffffff', 40, true); // Gumka
 } else if (level === 3) {
-levelTitle.innerText = "Poziom 3: Detale i Światłocień";
-createBtn('Mały pisak', '#000000', 3, 'tool-black');
-defaultBtn = createBtn('Pędzel Cienia', 'rgba(0,0,0,0.15)', 25, 'tool-shadow');
-createBtn('Pędzel Światła', 'rgba(255,255,255,0.6)', 15, 'tool-light');
+levelTitle.innerText = "Etap 3: Dodaj cienie i blask";
+defaultSwatch = createSwatch('rgba(0,0,0,0.2)', 40); // Cień
+createSwatch('rgba(255,255,255,0.4)', 40); // Światło
+createSwatch('#ff2d55', 10); // Detale
 }
-if(defaultBtn) defaultBtn.click();
-}
-
-function setTool(color, width, btnElement) {
-currentTool.color = color;
-currentTool.width = width;
-document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active-tool'));
-if(btnElement) btnElement.classList.add('active-tool');
+if(defaultSwatch) defaultSwatch.click();
 }
 
 function changeLevel(lvl) {
 currentLevel = lvl;
 if(currentLevel > 3) currentLevel = 1;
+
+// Przy zmianie etapu zawsze resetujemy tryb mieszania
+fillCtx.globalCompositeOperation = "source-over";
+outlineCtx.globalCompositeOperation = "source-over";
+
 updateBackgroundGuide(currentLevel);
 updateToolbar(currentLevel);
 }
 
 changeLevel(1);
 
-// --- KOMUNIKACJA SIECIOWA (MQTT) ---
+// --- KOMUNIKACJA SIECIOWA ---
 const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
-const topic = "artworkout/nasz_tajny_pokoj_ipados_9921";
+const topic = "artworkout/pro_room_ipad_7788";
 const client = mqtt.connect(brokerUrl);
 
 client.on('connect', () => {
-statusEl.innerText = "Połączono! Gracie razem.";
+statusEl.innerText = "Połączono online";
 statusEl.className = 'status-connected';
 client.subscribe(topic);
 });
 
 client.on('error', () => {
-statusEl.innerText = "Błąd połączenia. Sprawdź sieć.";
+statusEl.innerText = "Brak sieci";
 statusEl.className = 'status-error';
 });
 
@@ -265,27 +390,23 @@ const data = JSON.parse(message.toString());
 if (data.id === myClientId) return;
 
 if (data.type === 'clear') {
-drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+fillCtx.clearRect(0, 0, width, height);
+outlineCtx.clearRect(0, 0, width, height);
 }
-// Otrzymanie całej narysowanej linii
 else if (data.type === 'full_stroke') {
-drawReceivedStroke(data.points, data.color, data.width);
+drawReceivedStroke(data.points, data.color, data.width, data.layer, data.isEraser);
 }
-// Logika gotowości do zmiany poziomu
 else if (data.type === 'ready_next_level') {
 partnerIsReady = true;
 checkLevelAdvance();
 }
 });
 
-// --- LOGIKA POZIOMÓW ---
 function requestNextLevel() {
 if (iAmReady) return;
-
 iAmReady = true;
-nextLevelBtn.innerText = "Czekam na partnera...";
-nextLevelBtn.style.backgroundColor = "#ffc107"; // Kolor żółty - oczekiwanie
-nextLevelBtn.style.color = "black";
+nextLevelBtn.innerText = "Czekam...";
+nextLevelBtn.classList.add('btn-waiting');
 
 if (client.connected) {
 client.publish(topic, JSON.stringify({ id: myClientId, type: 'ready_next_level' }));
@@ -295,46 +416,53 @@ checkLevelAdvance();
 
 function checkLevelAdvance() {
 if (iAmReady && partnerIsReady) {
-// Jeśli oboje są gotowi, zmieniamy poziom
 const next = currentLevel === 3 ? 1 : currentLevel + 1;
 changeLevel(next);
 
-// Resetujemy stan przycisków i zmiennych
-iAmReady = false;
-partnerIsReady = false;
-nextLevelBtn.innerText = "Następny Etap ➔";
-nextLevelBtn.style.backgroundColor = "#007bff";
-nextLevelBtn.style.color = "white";
+iAmReady = false; partnerIsReady = false;
+nextLevelBtn.innerText = "Dalej ➔";
+nextLevelBtn.classList.remove('btn-waiting');
 }
 }
 
 function clearCanvasCommand() {
-drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+fillCtx.clearRect(0, 0, width, height);
+outlineCtx.clearRect(0, 0, width, height);
 if (client.connected) client.publish(topic, JSON.stringify({ id: myClientId, type: 'clear' }));
 }
 
-// --- RYSOWANIE ---
+// --- MECHANIKA RYSOWANIA NA WARSTWACH ---
 
-// Funkcja rysująca otrzymaną w całości linię (gwarantuje brak poszarpanych pikseli)
-function drawReceivedStroke(points, color, width) {
-if (!points || points.length < 2) return;
-drawCtx.strokeStyle = color;
-drawCtx.lineWidth = width;
-drawCtx.lineCap = "round";
-drawCtx.lineJoin = "round";
-drawCtx.beginPath();
-drawCtx.moveTo(points[0].x, points[0].y);
-for (let i = 1; i < points.length; i++) {
-drawCtx.lineTo(points[i].x, points[i].y);
+// Zwraca odpowiedni kontekst (Canvas) w zależności od obecnego etapu
+function getActiveContext() {
+return currentLevel === 1 ? outlineCtx : fillCtx;
 }
-drawCtx.stroke();
+
+function drawReceivedStroke(points, color, strokeWidth, targetLayer, isEraser) {
+if (!points || points.length < 2) return;
+
+const ctx = targetLayer === 'outline' ? outlineCtx : fillCtx;
+
+ctx.save();
+if (isEraser) ctx.globalCompositeOperation = "destination-out";
+
+ctx.strokeStyle = color;
+ctx.lineWidth = strokeWidth;
+ctx.lineCap = "round"; ctx.lineJoin = "round";
+
+ctx.beginPath();
+ctx.moveTo(points[0].x, points[0].y);
+for (let i = 1; i < points.length; i++) {
+ctx.lineTo(points[i].x, points[i].y);
+}
+ctx.stroke();
+ctx.restore();
 }
 
 function getPos(e) {
-const rect = drawCanvas.getBoundingClientRect();
-const scaleX = drawCanvas.width / rect.width;
-const scaleY = drawCanvas.height / rect.height;
-// PointerEvents używają po prostu e.clientX/Y (zarówno dla palca, rysika i myszy)
+const rect = uiCanvas.getBoundingClientRect();
+const scaleX = width / rect.width;
+const scaleY = height / rect.height;
 return {
 x: Math.round((e.clientX - rect.left) * scaleX),
 y: Math.round((e.clientY - rect.top) * scaleY)
@@ -345,23 +473,23 @@ function startDrawing(e) {
 isDrawing = true;
 const pos = getPos(e);
 lastPos = pos;
-currentStroke = [pos]; // Rozpoczynamy zapisywanie punktów dla nowej linii
+currentStroke = [pos];
 }
 
 function draw(e) {
 if (!isDrawing) return;
 const currentPos = getPos(e);
+const ctx = getActiveContext();
 
-// Rysujemy natychmiastowo lokalnie na naszym ekranie
-drawCtx.strokeStyle = currentTool.color;
-drawCtx.lineWidth = currentTool.width;
-drawCtx.lineCap = "round"; drawCtx.lineJoin = "round";
-drawCtx.beginPath();
-drawCtx.moveTo(lastPos.x, lastPos.y);
-drawCtx.lineTo(currentPos.x, currentPos.y);
-drawCtx.stroke();
+ctx.strokeStyle = currentTool.color;
+ctx.lineWidth = currentTool.width;
+ctx.lineCap = "round"; ctx.lineJoin = "round";
 
-// Dodajemy punkt do naszej ścieżki
+ctx.beginPath();
+ctx.moveTo(lastPos.x, lastPos.y);
+ctx.lineTo(currentPos.x, currentPos.y);
+ctx.stroke();
+
 currentStroke.push(currentPos);
 lastPos = currentPos;
 }
@@ -370,25 +498,26 @@ function stopDrawing(e) {
 if (!isDrawing) return;
 isDrawing = false;
 
-// Po oderwaniu palca/rysika wysyłamy CAŁĄ narysowaną ścieżkę do drugiej osoby
 if (currentStroke.length > 1 && client.connected) {
 client.publish(topic, JSON.stringify({
 id: myClientId,
 type: 'full_stroke',
 color: currentTool.color,
 width: currentTool.width,
+layer: currentLevel === 1 ? 'outline' : 'fill',
+isEraser: fillCtx.globalCompositeOperation === "destination-out",
 points: currentStroke
 }));
 }
-currentStroke = []; // Czyścimy tablicę dla następnej linii
+currentStroke = [];
 }
 
-// Nowoczesne zdarzenia PointerEvents (idealne dla iPada, Apple Pencil, myszy i dotyku)
-drawCanvas.addEventListener('pointerdown', startDrawing);
-drawCanvas.addEventListener('pointermove', draw);
-drawCanvas.addEventListener('pointerup', stopDrawing);
-drawCanvas.addEventListener('pointerout', stopDrawing);
-drawCanvas.addEventListener('pointercancel', stopDrawing);
+// Zdarzenia podpięte pod uiCanvas (górną niewidzialną warstwę)
+uiCanvas.addEventListener('pointerdown', startDrawing);
+uiCanvas.addEventListener('pointermove', draw);
+uiCanvas.addEventListener('pointerup', stopDrawing);
+uiCanvas.addEventListener('pointerout', stopDrawing);
+uiCanvas.addEventListener('pointercancel', stopDrawing);
 
 </script>
 </body>
