@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nasze ArtWorkout</title>
+    <!-- Pobranie biblioteki PeerJS do połączenia multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            background: #ffe6e6; 
+            margin: 0; 
+            padding: 20px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .controls { 
+            margin-bottom: 15px; 
+            padding: 20px; 
+            background: white; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+            max-width: 400px;
+            width: 100%;
+        }
+        canvas { 
+            border: 4px solid #ff4d4d; 
+            background: white; 
+            cursor: crosshair; 
+            touch-action: none; /* Zapobiega przewijaniu ekranu przy rysowaniu palcem */
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+        }
+        button { 
+            background: #ff4d4d; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover { background: #ff3333; }
+        input { 
+            padding: 10px; 
+            border: 2px solid #ffcccc; 
+            border-radius: 8px; 
+            font-size: 16px;
+            width: 80%;
+            margin-top: 10px;
+            text-align: center;
+        }
+        #myId { font-weight: bold; color: #ff4d4d; font-size: 1.2em; user-select: all; }
+        .instruction { font-size: 0.9em; color: #666; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <!-- Panel Sterowania Multiplayer -->
+    <div class="controls">
+        <h2 style="margin-top: 0; color: #333;">Połączenie</h2>
+        <p>Twój kod: <br><span id="myId">Generowanie kodu...</span></p>
+        <p class="instruction">(Skopiuj ten kod i wyślij dziewczynie, ALBO wpisz jej kod poniżej)</p>
+        
+        <input type="text" id="friendId" placeholder="Wpisz kod dziewczyny">
+        <br>
+        <button onclick="connectToFriend()">Połącz</button>
+        
+        <div id="status" style="margin-top: 15px; color: #ff4d4d; font-weight: bold;">Czekam na połączenie...</div>
+        
+        <button onclick="clearCanvas()" style="margin-top: 15px; background: #666;">Wyczyść planszę</button>
+    </div>
+
+    <!-- Płótno do rysowania -->
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+
+    <script>
+        // --- 1. KONFIGURACJA PŁÓTNA (CANVAS) ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        
+        // Rysowanie tła (kształt do obrysowania, jak w ArtWorkout)
+        function drawBackground() {
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height); // Czyści planszę
+            
+            // Rysuje grube, jasne kółko na środku
+            ctx.beginPath();
+            ctx.arc(300, 300, 150, 0, Math.PI * 2);
+            ctx.strokeStyle = "#ffe6e6"; // Bardzo jasny różowy
+            ctx.lineWidth = 40;
+            ctx.stroke();
+            ctx.closePath();
+        }
+        drawBackground(); // Wywołujemy na start
+
+        // Ustawienia naszego pędzla
+        ctx.strokeStyle = "#ff4d4d"; // Czerwony kolor pisaka
+        ctx.lineWidth = 10;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        // --- 2. MULTIPLAYER (PEER.JS) ---
+        const peer = new Peer(); // Inicjalizacja połączenia P2P
+        let conn = null; // Tu będziemy trzymać aktywne połączenie
+
+        // Gdy system wygeneruje Ci unikalne ID
+        peer.on('open', (id) => {
+            document.getElementById('myId').innerText = id;
+        });
+
+        // Gdy KTOŚ się z Tobą połączy (dziewczyna wpisze Twój kod)
+        peer.on('connection', (connection) => {
+            setupConnection(connection);
+        });
+
+        // Gdy TY chcesz się połączyć (wpisujesz kod dziewczyny)
+        function connectToFriend() {
+            const friendId = document.getElementById('friendId').value.trim();
+            if (!friendId) return alert('Najpierw wpisz kod!');
+            
+            document.getElementById('status').innerText = "Łączenie...";
+            const connection = peer.connect(friendId);
+            setupConnection(connection);
+        }
+
+        // Wspólna funkcja konfigurująca działające połączenie
+        function setupConnection(connection) {
+            conn = connection;
+            
+            conn.on('open', () => {
+                document.getElementById('status').innerText = "✅ Połączono! Możecie rysować.";
+                document.getElementById('status').style.color = "green";
+            });
+
+            // Odbieranie danych od drugiego gracza
+            conn.on('data', (data) => {
+                if (data.type === 'clear') {
+                    drawBackground();
+                } else if (data.type === 'start') {
+                    ctx.beginPath();
+                    ctx.moveTo(data.x, data.y);
+                } else if (data.type === 'draw') {
+                    ctx.lineTo(data.x, data.y);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(data.x, data.y);
+                } else if (data.type === 'stop') {
+                    ctx.beginPath(); // Przerywa łączenie starych linii z nowymi
+                }
+            });
+        }
+
+        // --- 3. MECHANIKA RYSOWANIA ---
+        
+        // Oblicza pozycję kursora/palca względem płótna
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            // Obsługa zarówno dotyku na telefonie, jak i myszki na PC
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            // Skalowanie dla poprawnego rysowania jeśli canvas zmienił rozmiar przez CSS
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            const pos = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            
+            // Wyślij info do drugiego gracza
+            if (conn && conn.open) conn.send({ type: 'start', x: pos.x, y: pos.y });
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const pos = getPos(e);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+            
+            // Aby linia była gładka
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            
+            // Wyślij info do drugiego gracza
+            if (conn && conn.open) conn.send({ type: 'draw', x: pos.x, y: pos.y });
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+            ctx.beginPath();
+            if (conn && conn.open) conn.send({ type: 'stop' });
+        }
+
+        function clearCanvas() {
+            drawBackground();
+            if (conn && conn.open) conn.send({ type: 'clear' });
+        }
+
+        // Nasłuchiwanie zdarzeń - Myszka (PC)
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        // Nasłuchiwanie zdarzeń - Dotyk (Telefony)
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
+        canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
+    </script>
+</body>
+</html>
