@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ArtWorkout Online</title>
-    <!-- Niezawodny i lekki skrypt do szybkiej komunikacji sieciowej -->
+    <!-- Biblioteka MQTT do komunikacji w czasie rzeczywistym -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
         body { 
@@ -31,32 +31,34 @@
             border-radius: 16px;
             overflow: hidden;
             border: 4px solid #333;
+            background: #ffffff;
         }
         canvas { 
-            background: #ffffff; 
             cursor: crosshair; 
-            touch-action: none;
+            touch-action: none; /* Zapobiega przewijaniu strony podczas rysowania na telefonie */
             display: block;
         }
         button { 
             background: #6c757d; 
             color: white; 
             border: none; 
-            padding: 8px 16px; 
+            padding: 10px 20px; 
             border-radius: 8px; 
             cursor: pointer; 
             font-weight: bold; 
             font-size: 14px;
+            transition: background 0.2s;
         }
         button:hover { background: #5a6268; }
-        #status { font-weight: bold; color: #28a745; margin-bottom: 5px; }
+        #status { font-weight: bold; color: #ff9800; margin-bottom: 10px; }
+        .status-connected { color: #28a745 !important; }
     </style>
 </head>
 <body>
 
     <div class="controls">
         <div id="status">Łączenie z prywatnym kanałem...</div>
-        <button onclick="clearCanvas()">Wyczyść planszę</button>
+        <button onclick="clearCanvasCommand()">Wyczyść planszę</button>
     </div>
 
     <div class="canvas-container">
@@ -66,16 +68,31 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        
         let isDrawing = false;
+        let lastPos = null;
 
-        // Tworzymy unikalny identyfikator dla Ciebie, żeby przeglądarka odróżniała Twój pędzel od dziewczyny
+        // Unikalne ID użytkownika i jego unikalny kolor
         const myClientId = 'user_' + Math.random().toString(16).substr(2, 8);
+        const myColor = hsl(${Math.floor(Math.random() * 360)}, 70%, 50%); 
 
-        // --- PRECYZYJNY RYSUNEK KOTKÓW W TLE ---
+        // Ustawienia pędzla
+        ctx.lineWidth = 5; 
+        ctx.lineCap = "round"; 
+        ctx.lineJoin = "round";
+
+        // --- RYSUNEK W TLE ---
         function drawBackground() {
+            // Czyszczenie całego płótna
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.lineWidth = 12; ctx.lineCap = "round"; ctx.lineJoin = "round";
+            
+            // Zachowanie obecnych ustawień pędzla
+            const prevLineWidth = ctx.lineWidth;
+            
+            ctx.lineWidth = 12; 
+            ctx.lineCap = "round"; 
+            ctx.lineJoin = "round";
 
             // LEWY KOTEK
             ctx.strokeStyle = "rgba(255, 182, 193, 0.5)";
@@ -95,46 +112,50 @@
             ctx.bezierCurveTo(250, 460, 120, 470, 120, 360); ctx.bezierCurveTo(120, 280, 250, 240, 285, 300);
             ctx.bezierCurveTo(320, 240, 450, 280, 450, 360); ctx.bezierCurveTo(450, 470, 320, 460, 320, 390);
             ctx.stroke();
+
+            // Przywrócenie grubości pędzla do rysowania
+            ctx.lineWidth = prevLineWidth;
         }
+
+        // Inicjalizacja tła na start
         drawBackground();
 
-        ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round";
-
-        // --- BEZAWARYJNE POŁĄCZENIE PRZEZ PUBLICZNY BROKER MQTT WSS ---
-        // Używamy bezpiecznego szyfrowanego połączenia Websocket (wss), które działa na każdym urządzeniu i sieci
-        const client = mqtt.connect('wss://broker.hivemq.com:8044/mqtt');
-        
-        // Wasz unikalny, tajny kanał gry. Nikt inny na świecie go nie zgadnie.
+        // --- POŁĄCZENIE SIECIOWE ---
+        // Używamy stabilnego portu 8884 dla WSS
+        const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
         const topic = "artworkout/nasz_wspolny_tajny_pokoj_12948"; 
 
         client.on('connect', () => {
-            document.getElementById('status').innerText = "Połączono! Możecie razem malować.";
+            const statusEl = document.getElementById('status');
+            statusEl.innerText = "Połączono! Możecie razem malować.";
+            statusEl.classList.add('status-connected');
             client.subscribe(topic);
         });
 
-        // Odbieranie ruchów od drugiego gracza
+        // Odbieranie ruchów
         client.on('message', (topic, message) => {
             const data = JSON.parse(message.toString());
             
-            // Ignoruj wiadomości wysłane przez samego siebie
-            if (data.id === myClientId) return; 
+            if (data.id === myClientId) return; // Ignoruj własne wiadomości
 
             if (data.type === 'clear') {
                 drawBackground();
-            } else {
-                // Drugi gracz rysuje na czerwono
-                ctx.strokeStyle = "#dc3545"; 
-                if (data.type === 'start') {
-                    ctx.beginPath();
-                    ctx.moveTo(data.x, data.y);
-                } else if (data.type === 'draw') {
-                    ctx.lineTo(data.x, data.y);
-                    ctx.stroke();
-                }
+            } else if (data.type === 'line') {
+                drawLineSegment(data.x0, data.y0, data.x1, data.y1, data.color);
             }
         });
 
         // --- MECHANIKA RYSOWANIA ---
+
+        // Funkcja rysująca pojedynczy odcinek (działa tak samo dla Ciebie i kogoś z sieci)
+        function drawLineSegment(x0, y0, x1, y1, color) {
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+        }
+
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -154,41 +175,49 @@
 
         function startDrawing(e) {
             isDrawing = true;
-            const pos = getPos(e);
-            ctx.strokeStyle = "#007bff"; // Ty rysujesz na niebiesko
-            ctx.beginPath();
-            ctx.moveTo(pos.x, pos.y);
-            sendData({ type: 'start', x: pos.x, y: pos.y });
+            lastPos = getPos(e);
         }
 
         function draw(e) {
             if (!isDrawing) return;
-            const pos = getPos(e);
-            ctx.strokeStyle = "#007bff";
-            ctx.lineTo(pos.x, pos.y);
-            ctx.stroke();
-            sendData({ type: 'draw', x: pos.x, y: pos.y });
+            const currentPos = getPos(e);
+            
+            // Rysuj u siebie
+            drawLineSegment(lastPos.x, lastPos.y, currentPos.x, currentPos.y, myColor);
+            
+            // Wyślij do innych
+            sendData({ 
+                type: 'line', 
+                x0: lastPos.x, 
+                y0: lastPos.y, 
+                x1: currentPos.x, 
+                y1: currentPos.y, 
+                color: myColor 
+            });
+            
+            lastPos = currentPos; // Zaktualizuj pozycję
         }
 
         function stopDrawing() {
             isDrawing = false;
+            lastPos = null;
         }
 
-        function clearCanvas() {
+        function clearCanvasCommand() {
             drawBackground();
             sendData({ type: 'clear' });
         }
 
-        // Myszka
+        // Obsługa myszki
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
 
-        // Dotyk
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
-        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
-        canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
+        // Obsługa ekranów dotykowych (np. telefony)
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); }, { passive: false });
+        canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); }, { passive: false });
     </script>
 </body>
 </html>
